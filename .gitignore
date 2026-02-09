@@ -1,0 +1,113 @@
+# -----------------------------
+# OS files (macOS / Windows)
+# -----------------------------
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# -----------------------------
+# IDE / editor files
+# -----------------------------
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+*.opendb
+
+# -----------------------------
+# Build directories
+# -----------------------------
+[Bb]uild/
+[Bb]in/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+arm64/
+ipch/
+
+# -----------------------------
+# CMake artifacts
+# -----------------------------
+CMakeFiles/
+CMakeCache.txt
+cmake-build-*/
+compile_commands.json
+Testing/
+CTestTestfile.cmake
+cmake_install.cmake
+install_manifest.txt
+
+# -----------------------------
+# C/C++ compiled artifacts
+# -----------------------------
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.dll
+*.dylib
+*.so
+*.exp
+*.pdb
+*.idb
+*.ilk
+*.iobj
+*.ipdb
+*.pch
+*.res
+*.tlog
+*.lastbuildstate
+*.cache
+*.log
+*.tmp
+*.temp
+
+# Executables / app bundles
+*.exe
+*.out
+*.app
+*.dSYM/
+
+# Resource editor cache
+*.aps
+
+# -----------------------------
+# Test / coverage artifacts
+# -----------------------------
+*.gcno
+*.gcda
+*.gcov
+*.profraw
+*.profdata
+coverage/
+
+# -----------------------------
+# Archives / packaged outputs
+# -----------------------------
+*.zip
+*.7z
+*.tar
+*.gz
+*.rar
+
+# -----------------------------
+# Local environment files
+# -----------------------------
+.env
+.env.*
+*.local
