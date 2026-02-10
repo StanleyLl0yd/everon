@@ -38,4 +38,6 @@ It is simple to use, runs quietly in the background, and gives quick access to a
 
 ## License
 
-MIT License.
+Everon is licensed under the PolyForm Noncommercial License 1.0.0.
+
+See [LICENSE](LICENSE) for full terms, including the required notice and commercial licensing information.
