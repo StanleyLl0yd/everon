@@ -1,8 +1,11 @@
 # История изменений
 
-[English](CHANGELOG.md) | [Русский](CHANGELOG.ru.md)
+[![en](https://img.shields.io/badge/lang-en-red.svg)](CHANGELOG.md)
+[![ru](https://img.shields.io/badge/lang-ru-blue.svg)](CHANGELOG.ru.md)
 
 Здесь перечислены заметные изменения Everon.
+
+---
 
 ## 2.6.0 — 2026-08-26
 

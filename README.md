@@ -1,58 +1,53 @@
 # Everon
 
-[![Build](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml/badge.svg)](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml)
+[![Windows CI](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml)
+[![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4?logo=windows11&logoColor=white)](https://github.com/StanleyLl0yd/everon/releases)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
-[English](README.md) | [Русский](README.ru.md)
+[English](README.md) · [Русский](README.ru.md)
 
-Everon is a small native Windows tray utility that prevents automatic system sleep while it is enabled. It runs without a main window and is controlled from the system tray.
+A lightweight native Windows tray utility that prevents automatic system sleep while it is enabled. Everon runs without a main window and is controlled from the system tray.
+
+**Source version:** 2.6.0 · **Platform:** Windows x64 · **Language:** C++17
+
+[GitHub Releases](https://github.com/StanleyLl0yd/everon/releases)
 
 ## Features
 
-- Prevents automatic system sleep using the Windows `SetThreadExecutionState` API
-- Can optionally keep the display active
-- Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from 1 second to 24 hours
-- Timer modes:
-  - Indefinitely
-  - For a selected duration
-  - Until the next occurrence of a selected local time
-- Enable or disable Everon from the tray menu
-- Single-click the tray icon to open Settings
-- Uses a visually muted tray icon while Everon is disabled
-- Optional configurable global hotkey to enable/disable Everon
-- Optional start with Windows for the current user
-- Optional notifications when Everon is enabled or disabled; timer expiration and relevant errors are also reported through notifications
-- Six interface languages: English, Russian, French, German, Italian, and Spanish
-- Single-instance operation: starting Everon again opens Settings in the running instance
-- Restores its tray icon after Windows Explorer restarts
-- Stores settings for the current user under `HKCU\Software\Everon`
+- Prevents automatic system sleep using the Windows `SetThreadExecutionState` API.
+- Can optionally keep the display active.
+- Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from **1 second to 24 hours**.
+- Three timer modes: **Indefinitely**, **For duration**, and **Until time**.
+- Enable or disable Everon from the tray menu.
+- Single-click the tray icon to open **Settings**.
+- Uses a visually muted tray icon while Everon is disabled.
+- Optional configurable global hotkey to enable or disable Everon.
+- Optional start with Windows for the current user.
+- Optional notifications when Everon is enabled or disabled; timer expiration and relevant errors are also reported through notifications.
+- Six interface languages: English, Russian, French, German, Italian, and Spanish.
+- Single-instance operation: starting Everon again opens **Settings** in the running instance.
+- Restores its tray icon after Windows Explorer restarts.
+- Stores settings for the current user under `HKCU\Software\Everon`.
+- **About** dialog with the installed version, purpose, author, license, and GitHub repository link.
 
-Everon is a keep-awake utility. It does not intercept manual lock, sleep, sign-out, or shutdown commands and is not intended to bypass system or organization policies.
+## System behavior
+
+Everon is a keep-awake utility. It prevents automatic system sleep while enabled, but does **not** intercept manual lock, sleep, sign-out, or shutdown commands and is not intended to bypass system or organization policies.
+
+The application is portable, requires no installer, and does not require administrator privileges. If **Start with Windows** is enabled, keep `Everon.exe` in a stable location; after moving the executable, enable autostart again so the stored path is updated.
 
 ## Usage
 
-1. Download `Everon.exe` from the latest GitHub release.
+1. Download `Everon.exe` from the latest [GitHub Release](https://github.com/StanleyLl0yd/everon/releases).
 2. Run it.
 3. Use the Everon icon in the Windows system tray:
-   - Right-click to enable/disable Everon, open **Settings** or **About**, or exit.
-   - Single-click to open **Settings**.
+   - right-click to enable or disable Everon, open **Settings** or **About**, or exit;
+   - single-click to open **Settings**.
 4. Configure display behavior, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
 
-If **Start with Windows** is enabled, keep `Everon.exe` in a stable location. If the executable is moved, enable autostart again so the stored path is updated.
+## Build from source
 
-## Distribution
-
-- Portable application; no installer is required
-- Published GitHub release: Windows x64 executable
-- Administrator privileges are not required
-
-## Build from Source
-
-### Prerequisites
-
-- Visual Studio or Visual Studio Build Tools with **Desktop development with C++**
-- CMake 3.21 or newer
-
-Everon is built as a C++17 Win32 application.
+Requirements: Visual Studio or Visual Studio Build Tools with **Desktop development with C++**, and CMake 3.21 or newer.
 
 ```powershell
 cmake -S . -B build -A x64 -DBUILD_TESTING=ON
@@ -66,20 +61,20 @@ The executable is normally created at:
 build\Release\Everon.exe
 ```
 
-The test suite currently covers timer behavior and hotkey parsing/serialization. GitHub Actions performs the x64 Release build and runs the tests on Windows.
+Project checks used by CI include the Windows x64 Release build, timer tests, hotkey parsing/serialization tests, and SHA-256 generation for the build artifact.
+
+Main stack: C++17, native Win32 API, CMake, and CTest.
+
+## Changelog
+
+[English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md)
+
+## License
+
+Licensed under the **PolyForm Noncommercial License 1.0.0**. See [LICENSE](LICENSE) for the full terms.
+
+Copyright © 2026 Stanley Lloyd.
 
 ## Author
 
 **Stanley Lloyd**
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md). The Russian version is available in [CHANGELOG.ru.md](CHANGELOG.ru.md).
-
-## License
-
-Everon is licensed under the **PolyForm Noncommercial License 1.0.0**.
-
-Noncommercial use is permitted under the license terms. Commercial use is not granted by this license and requires separate permission from the licensor.
-
-See [LICENSE](LICENSE) for the complete terms and required notice.
