@@ -6,44 +6,43 @@
 #include "Version.h"
 
 IDI_EVERON ICON "Everon.ico"
+1 24 "app.manifest"
 
-IDD_SETTINGS DIALOGEX 0, 0, 260, 260
+IDD_SETTINGS DIALOGEX 0, 0, 280, 268
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Everon Settings"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
     LTEXT           "Language:", IDC_LANGUAGE_LABEL, 10, 12, 50, 8
-    COMBOBOX        IDC_LANGUAGE_COMBO, 70, 10, 180, 100, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    GROUPBOX        "General", IDC_GENERAL_GROUP, 10, 30, 240, 70
+    COMBOBOX        IDC_LANGUAGE_COMBO, 70, 10, 200, 100, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "General", IDC_GENERAL_GROUP, 10, 30, 260, 70
     LTEXT           "Period:", IDC_PERIOD_LABEL, 20, 45, 40, 8
     EDITTEXT        IDC_PERIOD_EDIT, 70, 43, 60, 14, ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "seconds", IDC_PERIOD_SECONDS_LABEL, 135, 45, 50, 8
-    LTEXT           "Key press:", IDC_KEYPRESS_LABEL, 20, 65, 40, 8
-    COMBOBOX        IDC_KEY_COMBO, 70, 63, 120, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Keep display on", IDC_KEEPDISPLAY_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 83, 100, 10
-    CONTROL         "Start with Windows", IDC_AUTOSTART_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 130, 83, 100, 10
-    CONTROL         "Show notifications on Enable/Disable", IDC_NOTIFY_TOGGLE_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 93, 210, 10
-    GROUPBOX        "Timer", IDC_TIMER_GROUP, 10, 105, 240, 65
-    CONTROL         "Indefinitely", IDC_TIMER_INDEFINITE, "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 20, 120, 60, 10
-    CONTROL         "For duration:", IDC_TIMER_DURATION, "Button", BS_AUTORADIOBUTTON, 20, 135, 60, 10
-    EDITTEXT        IDC_TIMER_DURATION_EDIT, 85, 133, 40, 14, ES_AUTOHSCROLL | ES_NUMBER
-    LTEXT           "minutes (5-1440)", IDC_TIMER_DURATION_LABEL, 130, 135, 70, 8
-    CONTROL         "Until time:", IDC_TIMER_UNTIL, "Button", BS_AUTORADIOBUTTON, 20, 150, 55, 10
-    CONTROL         "", IDC_TIMER_UNTIL_TIME, "SysDateTimePick32", DTS_TIMEFORMAT | WS_TABSTOP, 85, 148, 80, 14
-    GROUPBOX        "Hotkeys", IDC_HOTKEYS_GROUP, 10, 175, 240, 50
-    CONTROL         "Enable global hotkey", IDC_HOTKEY_ENABLE_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 190, 100, 10
-    LTEXT           "Toggle hotkey:", IDC_HOTKEY_LABEL, 20, 208, 50, 8
-    COMBOBOX        IDC_HOTKEY_COMBO, 75, 206, 165, 150, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    DEFPUSHBUTTON   "OK", IDOK, 95, 235, 50, 14
-    PUSHBUTTON      "Cancel", IDCANCEL, 150, 235, 50, 14
+    LTEXT           "Key press:", IDC_KEYPRESS_LABEL, 20, 65, 45, 8
+    COMBOBOX        IDC_KEY_COMBO, 75, 63, 130, 80, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Keep display on", IDC_KEEPDISPLAY_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 83, 115, 10
+    CONTROL         "Start with Windows", IDC_AUTOSTART_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 145, 83, 115, 10
+    CONTROL         "Show notifications on Enable/Disable", IDC_NOTIFY_TOGGLE_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 93, 235, 10
+    GROUPBOX        "Timer", IDC_TIMER_GROUP, 10, 105, 260, 65
+    CONTROL         "Indefinitely", IDC_TIMER_INDEFINITE, "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP, 20, 120, 70, 10
+    CONTROL         "For duration:", IDC_TIMER_DURATION, "Button", BS_AUTORADIOBUTTON, 20, 135, 65, 10
+    EDITTEXT        IDC_TIMER_DURATION_EDIT, 95, 133, 40, 14, ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "minutes (5-1440)", IDC_TIMER_DURATION_LABEL, 140, 135, 100, 8
+    CONTROL         "Until time:", IDC_TIMER_UNTIL, "Button", BS_AUTORADIOBUTTON, 20, 150, 65, 10
+    CONTROL         "", IDC_TIMER_UNTIL_TIME, "SysDateTimePick32", DTS_TIMEFORMAT | WS_TABSTOP, 95, 148, 90, 14
+    GROUPBOX        "Hotkeys", IDC_HOTKEYS_GROUP, 10, 175, 260, 50
+    CONTROL         "Enable global hotkey", IDC_HOTKEY_ENABLE_CHECK, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 20, 190, 130, 10
+    LTEXT           "Toggle hotkey:", IDC_HOTKEY_LABEL, 20, 208, 55, 8
+    COMBOBOX        IDC_HOTKEY_COMBO, 80, 206, 180, 150, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "OK", IDOK, 105, 238, 50, 14
+    PUSHBUTTON      "Cancel", IDCANCEL, 160, 238, 50, 14
 END
 
 //------------------------------------------------------------------------------
 // Version information (fills "Details" tab in file properties)
-// Synchronized with project sources:
-// - AboutVersion: uses Version.h (Localization.cpp)
-// - Languages supported: English, Russian, French, German, Italian, Spanish
-// - New in v2.4: Reliability + low-memory localization + precise timers
+// Synchronized with Version.h and the runtime localization table.
+// License: PolyForm Noncommercial License 1.0.0.
 //------------------------------------------------------------------------------
 
 VS_VERSION_INFO VERSIONINFO
@@ -71,8 +70,8 @@ BEGIN
       VALUE "OriginalFilename", "Everon.exe\0"
       VALUE "ProductName",      "Everon\0"
       VALUE "ProductVersion",   VER_PRODUCTVERSION_STR "\0"
-      VALUE "LegalCopyright",   "Copyright (c) 2025 Stanley Lloyd\0"
-      VALUE "Comments",         "Tray utility to prevent sleep/lock; optional F15/F16/F17 key press; timer support. MIT License.\0"
+      VALUE "LegalCopyright",   "Copyright (c) 2025-2026 Stanley Lloyd\0"
+      VALUE "Comments",         "Tray utility that keeps the PC awake; optional F15/F16/F17 key press; timer support. PolyForm Noncommercial 1.0.0.\0"
     END
 
     // Russian (Russia) - Unicode
@@ -85,8 +84,8 @@ BEGIN
       VALUE "OriginalFilename", "Everon.exe\0"
       VALUE "ProductName",      "Everon\0"
       VALUE "ProductVersion",   VER_PRODUCTVERSION_STR "\0"
-      VALUE "LegalCopyright",   "Copyright (c) 2025 Stanley Lloyd\0"
-      VALUE "Comments",         "Утилита в трее: предотвращает сон/блокировку; опционально нажимает F15/F16/F17; поддержка таймера. Лицензия MIT.\0"
+      VALUE "LegalCopyright",   "Copyright (c) 2025-2026 Stanley Lloyd\0"
+      VALUE "Comments",         "Утилита в трее, поддерживающая компьютер активным; опционально F15/F16/F17; таймер. PolyForm Noncommercial 1.0.0.\0"
     END
 
     // French (France) - Unicode
@@ -99,8 +98,8 @@ BEGIN
       VALUE "OriginalFilename", "Everon.exe\0"
       VALUE "ProductName",      "Everon\0"
       VALUE "ProductVersion",   VER_PRODUCTVERSION_STR "\0"
-      VALUE "LegalCopyright",   "Copyright (c) 2025 Stanley Lloyd\0"
-      VALUE "Comments",         "Utilitaire de barre d'état : empêche la veille/le verrouillage ; pression optionnelle sur F15/F16/F17 ; support minuteur. Licence MIT.\0"
+      VALUE "LegalCopyright",   "Copyright (c) 2025-2026 Stanley Lloyd\0"
+      VALUE "Comments",         "Utilitaire de barre d'état qui maintient le PC éveillé; F15/F16/F17 optionnel; minuteur. PolyForm Noncommercial 1.0.0.\0"
     END
 
     // German (Germany) - Unicode
@@ -113,8 +112,8 @@ BEGIN
       VALUE "OriginalFilename", "Everon.exe\0"
       VALUE "ProductName",      "Everon\0"
       VALUE "ProductVersion",   VER_PRODUCTVERSION_STR "\0"
-      VALUE "LegalCopyright",   "Copyright (c) 2025 Stanley Lloyd\0"
-      VALUE "Comments",         "Tray-Tool: verhindert Standby/Sperren; optionaler Tastendruck F15/F16/F17; Timer-Unterstützung. MIT-Lizenz.\0"
+      VALUE "LegalCopyright",   "Copyright (c) 2025-2026 Stanley Lloyd\0"
+      VALUE "Comments",         "Tray-Tool, das den PC wach hält; optional F15/F16/F17; Timer. PolyForm Noncommercial 1.0.0.\0"
     END
 
     // Italian (Italy) - Unicode
@@ -127,8 +126,8 @@ BEGIN
       VALUE "OriginalFilename", "Everon.exe\0"
       VALUE "ProductName",      "Everon\0"
       VALUE "ProductVersion",   VER_PRODUCTVERSION_STR "\0"
-      VALUE "LegalCopyright",   "Copyright (c) 2025 Stanley Lloyd\0"
-      VALUE "Comments",         "Utilità nella tray: impedisce sospensione/blocco; pressione tasto opzionale F15/F16/F17; supporto timer. Licenza MIT.\0"
+      VALUE "LegalCopyright",   "Copyright (c) 2025-2026 Stanley Lloyd\0"
+      VALUE "Comments",         "Utilità tray che mantiene attivo il PC; F15/F16/F17 opzionale; timer. PolyForm Noncommercial 1.0.0.\0"
     END
 
     // Spanish (Spain, Modern Sort) - Unicode
@@ -141,8 +140,8 @@ BEGIN
       VALUE "OriginalFilename", "Everon.exe\0"
       VALUE "ProductName",      "Everon\0"
       VALUE "ProductVersion",   VER_PRODUCTVERSION_STR "\0"
-      VALUE "LegalCopyright",   "Copyright (c) 2025 Stanley Lloyd\0"
-      VALUE "Comments",         "Utilidad en la bandeja: evita suspensión/bloqueo; pulsación opcional de F15/F16/F17; soporte temporizador. Licencia MIT.\0"
+      VALUE "LegalCopyright",   "Copyright (c) 2025-2026 Stanley Lloyd\0"
+      VALUE "Comments",         "Utilidad de bandeja que mantiene activo el PC; F15/F16/F17 opcional; temporizador. PolyForm Noncommercial 1.0.0.\0"
     END
   END
 
