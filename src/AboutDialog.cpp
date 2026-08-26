@@ -5,6 +5,8 @@
 #include <commctrl.h>
 #include <shellapi.h>
 
+#include <string>
+
 namespace Everon {
 
 namespace {
@@ -68,15 +70,15 @@ void ShowAboutDialog(HINSTANCE instance, HWND parent) {
                                            0);
     if (result == -1) {
         auto& loc = Localization::Instance();
-        wchar_t message[768];
-        swprintf_s(message, _countof(message),
-                   L"%s\n%s\n\nStanley Lloyd\n%s\n\n%s",
-                   loc.GetString(StringID::AboutVersion),
-                   loc.GetString(StringID::AboutTagline),
-                   loc.GetString(StringID::AboutLicense),
-                   kRepositoryUrl);
+        std::wstring message = loc.GetString(StringID::AboutVersion);
+        message += L"\n";
+        message += loc.GetString(StringID::AboutTagline);
+        message += L"\n\nStanley Lloyd\n";
+        message += loc.GetString(StringID::AboutLicense);
+        message += L"\n\n";
+        message += kRepositoryUrl;
 
-        MessageBoxW(parent, message, loc.GetString(StringID::AboutTitle),
+        MessageBoxW(parent, message.c_str(), loc.GetString(StringID::AboutTitle),
                     MB_OK | MB_ICONINFORMATION);
     }
 }
