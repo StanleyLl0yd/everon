@@ -4,66 +4,54 @@
 
 [English](README.md) | [Русский](README.ru.md)
 
-Everon is a lightweight native Windows tray utility that keeps your computer awake when you need it. It runs quietly in the background and gives quick access to its controls from the system tray.
+Everon is a small native Windows tray utility that prevents automatic system sleep while it is enabled. It runs without a main window and is controlled from the system tray.
 
 ## Features
 
-- Prevent automatic system sleep while enabled
-- Optionally keep the display on
-- Optionally send periodic F15/F16/F17 key presses
+- Prevents automatic system sleep using the Windows `SetThreadExecutionState` API
+- Can optionally keep the display active
+- Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from 1 second to 24 hours
 - Timer modes:
   - Indefinitely
   - For a selected duration
-  - Until a selected time of day
-- Toggle Everon from the tray menu
-- Global hotkey for quick enable/disable
-- Optional start with Windows
-- Notifications for important events
+  - Until the next occurrence of a selected local time
+- Enable or disable Everon from the tray menu
+- Double-click the tray icon to open Settings
+- Optional configurable global hotkey to enable/disable Everon
+- Optional start with Windows for the current user
+- Optional notifications when Everon is enabled or disabled; timer expiration and relevant errors are also reported through notifications
 - Six interface languages: English, Russian, French, German, Italian, and Spanish
-- Single-instance behavior: launching Everon again opens the settings of the running instance
-- Tray icon restoration after Windows Explorer restarts
+- Single-instance operation: starting Everon again opens Settings in the running instance
+- Restores its tray icon after Windows Explorer restarts
+- Stores settings for the current user under `HKCU\Software\Everon`
 
-## Typical Use Cases
+Everon is a keep-awake utility. It does not intercept manual lock, sleep, sign-out, or shutdown commands and is not intended to bypass system or organization policies.
 
-- Long downloads or uploads
-- Presentations and meetings
-- Monitoring and automation tasks
-- Media playback
-- Keeping a workstation awake during short breaks
-
-## Requirements
-
-- Windows 10 or Windows 11
-- The published build is x64
-- Administrator privileges are not required
-
-Everon is portable: there is no installer and the application stores its settings in the current user's Windows registry under `HKCU\Software\Everon`.
-
-## Quick Start
+## Usage
 
 1. Download `Everon.exe` from the latest GitHub release.
 2. Run it.
-3. Find the Everon icon in the Windows system tray.
-4. Right-click the icon to enable/disable Everon or open **Settings**.
-5. Configure the timer, display behavior, optional key press, hotkey, notifications, language, and Windows autostart as needed.
+3. Use the Everon icon in the Windows system tray:
+   - Right-click to enable/disable Everon, open **Settings** or **About**, or exit.
+   - Double-click to open **Settings**.
+4. Configure display behavior, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
 
-If **Start with Windows** is enabled, keep `Everon.exe` in a stable location. Moving the executable changes its path and the autostart entry should then be enabled again from Settings.
+If **Start with Windows** is enabled, keep `Everon.exe` in a stable location. If the executable is moved, enable autostart again so the stored path is updated.
 
-## How It Works
+## Distribution
 
-Everon uses the standard Windows `SetThreadExecutionState` API to request that the system stay awake. When **Keep display on** is enabled, it also requests that the display remain active. The optional F15/F16/F17 mode uses `SendInput` and is disabled by default.
-
-The timer stores its active deadline as an absolute UTC value so duration and until-time modes remain stable across restarts and common clock/DST edge cases.
+- Portable application; no installer is required
+- Published GitHub release: Windows x64 executable
+- Administrator privileges are not required
 
 ## Build from Source
 
 ### Prerequisites
 
-- Visual Studio 2022 or Visual Studio Build Tools 2022
-- **Desktop development with C++** workload
+- Visual Studio or Visual Studio Build Tools with **Desktop development with C++**
 - CMake 3.21 or newer
 
-### Configure, build, and test
+Everon is built as a C++17 Win32 application.
 
 ```powershell
 cmake -S . -B build -A x64 -DBUILD_TESTING=ON
@@ -71,22 +59,13 @@ cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The resulting executable is normally located at:
+The executable is normally created at:
 
 ```text
 build\Release\Everon.exe
 ```
 
-The repository also includes a GitHub Actions workflow that performs the same x64 Release build and runs the tests on `windows-latest`.
-
-## Project Structure
-
-```text
-src/                 Win32/C++ application sources and resources
-tests/               Timer regression tests
-.github/workflows/    CI build workflow
-CMakeLists.txt        Reproducible build definition
-```
+The test suite currently covers timer behavior and hotkey parsing/serialization. GitHub Actions performs the x64 Release build and runs the tests on Windows.
 
 ## Author
 
@@ -94,7 +73,7 @@ CMakeLists.txt        Reproducible build definition
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md). A Russian version is available in [CHANGELOG.ru.md](CHANGELOG.ru.md).
+See [CHANGELOG.md](CHANGELOG.md). The Russian version is available in [CHANGELOG.ru.md](CHANGELOG.ru.md).
 
 ## License
 
