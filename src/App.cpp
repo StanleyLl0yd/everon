@@ -412,6 +412,7 @@ void App::StartTimer() {
             persistRuntimeState = true;
         } else {
             timer.ResumeMonotonicDuration();
+            m_settings.SetTimerRuntimeDeadline(timer.monotonicDeadlineMs);
         }
     }
 
