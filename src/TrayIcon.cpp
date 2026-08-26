@@ -106,7 +106,6 @@ bool TrayIcon::Add() {
     m_notifyData.cbSize = sizeof(NOTIFYICONDATAW);
     m_notifyData.hWnd = m_parentWindow;
     m_notifyData.uID = 1;
-
     m_notifyData.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP | NIF_GUID;
     m_notifyData.uCallbackMessage = WM_TRAYICON;
 
@@ -148,7 +147,6 @@ bool TrayIcon::Add() {
     m_notifyData.uFlags = savedFlags;
     // Reapply the tooltip because some shells ignore the value supplied with NIM_ADD.
     // NIM_MODIFY must include NIF_GUID when the icon was registered by GUID.
-
     m_notifyData.uFlags = NIF_TIP | NIF_SHOWTIP | NIF_GUID;
     Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"apply tray tooltip after add");
     m_notifyData.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP | NIF_GUID;
@@ -186,7 +184,7 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
     wchar_t tooltip[128] = {};
     StringCchCopyW(tooltip, _countof(tooltip),
                    settings.IsEnabled() ? loc.GetString(StringID::TooltipEnabled)
-                                       : loc.GetString(StringID::TooltipDisabled));
+                                        : loc.GetString(StringID::TooltipDisabled));
 
     auto AppendBullet = [&](const wchar_t* text) {
         if (!text || !*text) {
@@ -198,7 +196,7 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
     };
 
     if (settings.IsEnabled()) {
-        const bool isRu = (loc.GetLanguage() == Language::Russian);
+        const bool isRu = loc.GetLanguage() == Language::Russian;
         const wchar_t secUnit = isRu ? L'\x0441' : L's';
         const wchar_t minUnit = isRu ? L'\x043C' : L'm';
         const wchar_t hourUnit = isRu ? L'\x0447' : L'h';
@@ -219,11 +217,11 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
 
         TimerConfig timer = settings.GetTimerConfig();
         if (timer.mode == TimerMode::Duration) {
-            DWORD remaining = timer.GetRemainingSeconds();
+            const DWORD remaining = timer.GetRemainingSeconds();
             if (remaining != INFINITE && remaining > 0) {
                 DWORD minutes = remaining / 60;
-                DWORD hours = minutes / 60;
-                minutes = minutes % 60;
+                const DWORD hours = minutes / 60;
+                minutes %= 60;
 
                 wchar_t part[64] = {};
                 if (hours > 0) {
@@ -239,10 +237,17 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
                 AppendBullet(part);
             }
         } else if (timer.mode == TimerMode::UntilTime) {
-            wchar_t part[64] = {};
-            StringCchPrintfW(part, _countof(part), L"%s %02d:%02d",
-                             loc.GetString(StringID::SettingsTimerUntil),
-                             timer.untilTime.wHour, timer.untilTime.wMinute);
+            wchar_t part[80] = {};
+            if (timer.IsUntilNextDay()) {
+                StringCchPrintfW(part, _countof(part), L"%s %s %02d:%02d",
+                                 loc.GetString(StringID::SettingsTimerUntil),
+                                 loc.GetString(StringID::SettingsTimerTomorrow),
+                                 timer.untilTime.wHour, timer.untilTime.wMinute);
+            } else {
+                StringCchPrintfW(part, _countof(part), L"%s %02d:%02d",
+                                 loc.GetString(StringID::SettingsTimerUntil),
+                                 timer.untilTime.wHour, timer.untilTime.wMinute);
+            }
             AppendBullet(part);
         }
     }
@@ -296,11 +301,24 @@ void TrayIcon::ShowContextMenu() {
     }
 
     auto& loc = Localization::Instance();
-    const wchar_t* toggleText = m_isEnabled ?
-        loc.GetString(StringID::MenuDisable) :
-        loc.GetString(StringID::MenuEnable);
+    const wchar_t* toggleText = m_isEnabled
+        ? loc.GetString(StringID::MenuDisable)
+        : loc.GetString(StringID::MenuEnable);
 
     AppendMenuW(menu, MF_STRING, IDM_TOGGLE, toggleText);
+
+    HMENU timerMenu = CreatePopupMenu();
+    if (timerMenu) {
+        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_15, loc.GetString(StringID::MenuTimer15));
+        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_30, loc.GetString(StringID::MenuTimer30));
+        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_60, loc.GetString(StringID::MenuTimer60));
+        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_120, loc.GetString(StringID::MenuTimer120));
+        AppendMenuW(timerMenu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_UNTIL, loc.GetString(StringID::MenuTimerUntil));
+        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(timerMenu),
+                    loc.GetString(StringID::MenuQuickTimer));
+    }
+
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, IDM_SETTINGS, loc.GetString(StringID::MenuSettings));
     AppendMenuW(menu, MF_STRING, IDM_ABOUT, loc.GetString(StringID::MenuAbout));
@@ -321,6 +339,21 @@ void TrayIcon::ShowContextMenu() {
     switch (command) {
         case IDM_TOGGLE:
             if (m_onToggle) m_onToggle();
+            break;
+        case IDM_TIMER_15:
+            if (m_onDuration) m_onDuration(15);
+            break;
+        case IDM_TIMER_30:
+            if (m_onDuration) m_onDuration(30);
+            break;
+        case IDM_TIMER_60:
+            if (m_onDuration) m_onDuration(60);
+            break;
+        case IDM_TIMER_120:
+            if (m_onDuration) m_onDuration(120);
+            break;
+        case IDM_TIMER_UNTIL:
+            if (m_onSettings) m_onSettings();
             break;
         case IDM_SETTINGS:
             if (m_onSettings) m_onSettings();
