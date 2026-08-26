@@ -1,4 +1,4 @@
-name: Comment audit
+name: Comment cleanup
 
 on:
   push:
@@ -6,108 +6,230 @@ on:
       - ".github/workflows/comment-audit.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  audit:
+  cleanup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: List comments
+      - name: Clean comments
         shell: python
         run: |
           from pathlib import Path
           import re
 
-          roots = [Path("src"), Path("tests"), Path(".github/workflows")]
-          files = [Path("CMakeLists.txt"), Path(".gitignore")]
-          for root in roots:
-              if root.exists():
-                  files.extend(p for p in root.rglob("*") if p.is_file())
+          keep = {
+              "src/App.cpp": {
+                  "Defensive path for corrupted/legacy settings far in the future.": "Chunk long delays to stay within SetTimer's range.",
+                  "If we can't create the tray icon, the app becomes effectively invisible and": "Exit if the tray icon cannot be created; otherwise the app would be inaccessible.",
+                  "Re-arm to handle clock adjustments and boundary races robustly.": "Re-arm after clock changes or timer-boundary races.",
+                  "For UntilTime we must pin a concrete end moment, otherwise it would roll to \"tomorrow\"": "Pin UntilTime to a concrete deadline so it cannot roll into the next day when it fires.",
+                  "Defensive: enabled duration without runtime state": "Recover missing runtime state.",
+              },
+              "src/Settings.cpp": {
+                  "Timer runtime end moment (UTC) - preferred over legacy startTime for DST robustness": "Prefer the persisted UTC deadline to legacy local start time.",
+                  "Backward compatibility: compute endTimeUtc from legacy startTime": "Recover deadlines saved by older versions.",
+                  "Store end moment only for the currently enabled run; avoid stale values when disabled.": "Persist a deadline only for an active timed run.",
+              },
+              "src/SettingsDialog.cpp": {
+                  "Allow live language preview inside the dialog, but revert it if user clicks Cancel.": "Revert the live language preview if the dialog is cancelled.",
+                  "Keep date fields sane for UI/registry, but only time-of-day is used by the timer logic.": "Only the time of day is used; keep the stored date fields valid.",
+                  "If timer configuration changed, drop runtime state so it can be re-initialized when needed.": "Reset runtime state when the timer configuration changes.",
+              },
+              "src/TimerMode.cpp": {
+                  "nullptr => current time zone": "nullptr uses the current system time zone.",
+                  "Convert local target to UTC. Around DST transitions some local times may be invalid": "DST transitions can make local times invalid; probe forward to the next valid minute.",
+                  "up to 3 hours of probing (more than enough for DST gaps)": "Probe at most three hours.",
+                  "Last resort: treat local as UTC (stable, but may be offset by timezone).": "Fall back to treating local time as UTC if conversion still fails.",
+                  "Round up so we never report \"0 ms\" before the actual deadline.": "Round up so zero is never reported before the actual deadline.",
+              },
+              "src/TimerMode.h": {
+                  "Для UntilTime режима (используются только часы/минуты)": "Only hour and minute are used.",
+                  "Время запуска (legacy, для совместимости)": "Legacy local start time kept for backward compatibility.",
+                  "FILETIME UTC (QWORD). 0 = не задано": "Persisted UTC deadline; 0 means unset.",
+              },
+              "src/TrayIcon.cpp": {
+                  "Some SDKs may not define these flags, but Windows 7+ supports them.": "Keep compatibility with SDKs that omit these Windows 7+ flags.",
+                  "Re-apply tooltip after setting version (some shells ignore the tip set during NIM_ADD).": "Reapply the tooltip because some shells ignore the value supplied with NIM_ADD.",
+                  "IMPORTANT: When using NIF_GUID identity, include NIF_GUID for NIM_MODIFY; otherwise the modify": "NIM_MODIFY must include NIF_GUID when the icon was registered by GUID.",
+              },
+              "src/Utils.cpp": {
+                  "Mutex creation failed, allow app to run anyway": "Fail open if the single-instance mutex cannot be created.",
+              },
+              "src/Version.h": {
+                  "Single source of truth for Everon version.": "Single source of truth for the Everon version.",
+              },
+              "src/main.cpp": {
+                  "Ensure a stable AppUserModelID (Windows 7+) for consistent naming/grouping.": "Use a stable AppUserModelID for consistent Windows naming and grouping.",
+              },
+          }
 
-          c_like = {".cpp", ".cc", ".c", ".h", ".hpp", ".rc"}
-          hash_like = {".yml", ".yaml", ".cmake", ".gitignore"}
+          localization_header = Path("src/Localization.h").read_text(encoding="utf-8")
+          enum_match = re.search(r"enum class StringID\s*\{(.*?)\};", localization_header, re.S)
+          localization_ids = set()
+          if enum_match:
+              for line in enum_match.group(1).splitlines():
+                  match = re.match(r"\s*([A-Za-z_][A-Za-z0-9_]*)", line)
+                  if match:
+                      localization_ids.add(match.group(1))
 
-          def c_comments(text):
-              out = []
-              block = False
-              for lineno, line in enumerate(text.splitlines(), 1):
-                  i = 0
-                  quote = None
-                  while i < len(line):
-                      if block:
-                          end = line.find("*/", i)
-                          if end < 0:
-                              out.append((lineno, line.strip()))
-                              break
-                          out.append((lineno, line[i:end + 2].strip()))
-                          block = False
-                          i = end + 2
-                          continue
-                      ch = line[i]
-                      if quote:
-                          if ch == "\\":
-                              i += 2
-                              continue
-                          if ch == quote:
-                              quote = None
-                          i += 1
-                          continue
-                      if ch in {'"', "'"}:
-                          quote = ch
-                          i += 1
-                          continue
-                      if line.startswith("//", i):
-                          out.append((lineno, line[i:].strip()))
-                          break
-                      if line.startswith("/*", i):
-                          end = line.find("*/", i + 2)
-                          if end < 0:
-                              out.append((lineno, line[i:].strip()))
-                              block = True
-                              break
-                          out.append((lineno, line[i:end + 2].strip()))
-                          i = end + 2
-                          continue
+          def comment_pos(line):
+              quote = None
+              escaped = False
+              i = 0
+              while i < len(line) - 1:
+                  ch = line[i]
+                  if escaped:
+                      escaped = False
                       i += 1
-              return out
-
-          def hash_comments(text):
-              out = []
-              for lineno, line in enumerate(text.splitlines(), 1):
-                  quote = None
-                  escaped = False
-                  for i, ch in enumerate(line):
-                      if escaped:
-                          escaped = False
-                          continue
-                      if ch == "\\" and quote:
+                      continue
+                  if quote:
+                      if ch == "\\":
                           escaped = True
-                          continue
-                      if ch in {'"', "'"}:
-                          if quote == ch:
-                              quote = None
-                          elif quote is None:
-                              quote = ch
-                          continue
-                      if ch == "#" and quote is None:
-                          out.append((lineno, line[i:].strip()))
-                          break
-              return out
+                      elif ch == quote:
+                          quote = None
+                      i += 1
+                      continue
+                  if ch in {'"', "'"}:
+                      quote = ch
+                      i += 1
+                      continue
+                  if line[i:i + 2] == "//":
+                      return i
+                  i += 1
+              return -1
 
-          total = 0
-          non_english = 0
-          for path in sorted(set(files)):
-              if path.suffix.lower() not in c_like | hash_like and path.name != "CMakeLists.txt":
-                  continue
-              text = path.read_text(encoding="utf-8", errors="replace")
-              items = c_comments(text) if path.suffix.lower() in c_like else hash_comments(text)
-              if path.name == "CMakeLists.txt":
-                  items = hash_comments(text)
-              for lineno, comment in items:
-                  total += 1
-                  if re.search(r"[А-Яа-яЁё]", comment):
-                      non_english += 1
-                  print(f"{path}:{lineno}: {comment}")
-          print(f"TOTAL={total}")
-          print(f"CYRILLIC={non_english}")
+          def clean_c_like(path):
+              text = path.read_text(encoding="utf-8")
+              output = []
+              path_key = path.as_posix()
+              for line in text.splitlines():
+                  pos = comment_pos(line)
+                  if pos < 0:
+                      output.append(line.rstrip())
+                      continue
+                  body = line[pos + 2:].strip()
+                  replacement = None
+                  if path_key == "src/Localization.cpp":
+                      if body == "IMPORTANT: row order must match StringID enum order.":
+                          replacement = "Row order must match StringID enum order."
+                      elif body in localization_ids:
+                          replacement = body
+                  else:
+                      replacement = keep.get(path_key, {}).get(body)
+                  code = line[:pos].rstrip()
+                  if replacement:
+                      if code:
+                          output.append(f"{code} // {replacement}")
+                      else:
+                          indent = line[:len(line) - len(line.lstrip())]
+                          output.append(f"{indent}// {replacement}")
+                  elif code:
+                      output.append(code)
+                  else:
+                      output.append("")
+              cleaned = "\n".join(output) + "\n"
+              cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+              path.write_text(cleaned, encoding="utf-8")
+
+          for root in (Path("src"), Path("tests")):
+              for path in root.rglob("*"):
+                  if path.is_file() and path.suffix.lower() in {".cpp", ".c", ".cc", ".h", ".hpp", ".rc"}:
+                      clean_c_like(path)
+
+          settings_h = Path("src/Settings.h")
+          settings_text = settings_h.read_text(encoding="utf-8").replace(
+              "static constexpr DWORD MAX_PERIOD_SEC = 86400;",
+              "static constexpr DWORD MAX_PERIOD_SEC = 24 * 60 * 60;"
+          )
+          settings_h.write_text(settings_text, encoding="utf-8")
+
+          timer_h = Path("src/TimerMode.h")
+          timer_text = timer_h.read_text(encoding="utf-8").replace(
+              "static constexpr DWORD MAX_DURATION_MIN = 1440;",
+              "static constexpr DWORD MAX_DURATION_MIN = 24 * 60;"
+          )
+          timer_h.write_text(timer_text, encoding="utf-8")
+
+          for path in [Path(".gitignore"), Path(".github/workflows/release.yml")]:
+              lines = path.read_text(encoding="utf-8").splitlines()
+              lines = [line.rstrip() for line in lines if not line.lstrip().startswith("#")]
+              text = "\n".join(lines) + "\n"
+              text = re.sub(r"\n{3,}", "\n\n", text)
+              path.write_text(text, encoding="utf-8")
+
+          manifest = Path("src/app.manifest")
+          manifest_text = manifest.read_text(encoding="utf-8")
+          manifest_text = re.sub(r"^\s*<!--.*?-->\s*\n", "", manifest_text, flags=re.M)
+          manifest.write_text(manifest_text, encoding="utf-8")
+
+          Path(".github/workflows/comment-audit.yml").unlink()
+      - name: Verify comments
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def comment_pos(line):
+              quote = None
+              escaped = False
+              i = 0
+              while i < len(line) - 1:
+                  ch = line[i]
+                  if escaped:
+                      escaped = False
+                      i += 1
+                      continue
+                  if quote:
+                      if ch == "\\":
+                          escaped = True
+                      elif ch == quote:
+                          quote = None
+                      i += 1
+                      continue
+                  if ch in {'"', "'"}:
+                      quote = ch
+                      i += 1
+                      continue
+                  if line[i:i + 2] == "//":
+                      return i
+                  i += 1
+              return -1
+
+          comments = []
+          for root in (Path("src"), Path("tests")):
+              for path in sorted(root.rglob("*")):
+                  if not path.is_file() or path.suffix.lower() not in {".cpp", ".c", ".cc", ".h", ".hpp", ".rc"}:
+                      continue
+                  for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                      pos = comment_pos(line)
+                      if pos >= 0:
+                          comments.append((path, lineno, line[pos + 2:].strip()))
+
+          for path in [Path(".gitignore"), Path(".github/workflows/build.yml"), Path(".github/workflows/release.yml"), Path("CMakeLists.txt")]:
+              for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  stripped = line.lstrip()
+                  if stripped.startswith("#"):
+                      comments.append((path, lineno, stripped[1:].strip()))
+
+          manifest_text = Path("src/app.manifest").read_text(encoding="utf-8")
+          if "<!--" in manifest_text:
+              comments.append((Path("src/app.manifest"), 0, "XML comment remains"))
+
+          cyrillic = [(p, n, c) for p, n, c in comments if re.search(r"[А-Яа-яЁё]", c)]
+          for path, lineno, comment in comments:
+              print(f"{path}:{lineno}: // {comment}")
+          print(f"TOTAL_REMAINING={len(comments)}")
+          print(f"CYRILLIC_REMAINING={len(cyrillic)}")
+          if cyrillic:
+              raise SystemExit("Non-English comments remain")
+      - name: Validate diff
+        run: git diff --check
+      - name: Commit cleanup
+        run: |
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add -A
+          git commit -m "Clean repository comments"
+          git push origin HEAD:codex/about-link-v2.6.1
