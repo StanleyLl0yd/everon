@@ -15,6 +15,81 @@
 #endif
 
 
+namespace {
+
+HICON CreateMutedIcon(HICON source, int width, int height) {
+    if (!source || width <= 0 || height <= 0) {
+        return nullptr;
+    }
+
+    BITMAPV5HEADER header{};
+    header.bV5Size = sizeof(header);
+    header.bV5Width = width;
+    header.bV5Height = -height;
+    header.bV5Planes = 1;
+    header.bV5BitCount = 32;
+    header.bV5Compression = BI_BITFIELDS;
+    header.bV5RedMask = 0x00FF0000;
+    header.bV5GreenMask = 0x0000FF00;
+    header.bV5BlueMask = 0x000000FF;
+    header.bV5AlphaMask = 0xFF000000;
+
+    HDC screen = GetDC(nullptr);
+    if (!screen) {
+        return nullptr;
+    }
+    void* rawBits = nullptr;
+    HBITMAP color = CreateDIBSection(screen, reinterpret_cast<BITMAPINFO*>(&header),
+                                     DIB_RGB_COLORS, &rawBits, nullptr, 0);
+    HDC memory = CreateCompatibleDC(screen);
+    ReleaseDC(nullptr, screen);
+    if (!color || !memory || !rawBits) {
+        if (memory) DeleteDC(memory);
+        if (color) DeleteObject(color);
+        return nullptr;
+    }
+
+    HGDIOBJ oldBitmap = SelectObject(memory, color);
+    ZeroMemory(rawBits, static_cast<SIZE_T>(width) * height * 4);
+    const BOOL drawn = DrawIconEx(memory, 0, 0, source, width, height, 0, nullptr, DI_NORMAL);
+    SelectObject(memory, oldBitmap);
+    DeleteDC(memory);
+    if (!drawn) {
+        DeleteObject(color);
+        return nullptr;
+    }
+
+    auto* pixels = static_cast<BYTE*>(rawBits);
+    const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+    for (size_t i = 0; i < pixelCount; ++i) {
+        BYTE* pixel = pixels + (i * 4);
+        const BYTE gray = static_cast<BYTE>((static_cast<unsigned>(pixel[2]) * 30U +
+                                             static_cast<unsigned>(pixel[1]) * 59U +
+                                             static_cast<unsigned>(pixel[0]) * 11U) / 100U);
+        const BYTE muted = static_cast<BYTE>((static_cast<unsigned>(gray) + 180U) / 2U);
+        pixel[0] = muted;
+        pixel[1] = muted;
+        pixel[2] = muted;
+    }
+
+    HBITMAP mask = CreateBitmap(width, height, 1, 1, nullptr);
+    if (!mask) {
+        DeleteObject(color);
+        return nullptr;
+    }
+
+    ICONINFO iconInfo{};
+    iconInfo.fIcon = TRUE;
+    iconInfo.hbmColor = color;
+    iconInfo.hbmMask = mask;
+    HICON result = CreateIconIndirect(&iconInfo);
+    DeleteObject(mask);
+    DeleteObject(color);
+    return result;
+}
+
+} // namespace
+
 namespace Everon {
 
 
@@ -43,16 +118,21 @@ bool TrayIcon::Add() {
         {0x8b5e6f7a, 0x6d8a, 0x4a0c, {0x9d, 0x2e, 0x4f, 0x7d, 0x7a, 0x51, 0x1c, 0x10}};
     m_notifyData.guidItem = kTrayGuid;
 
-    m_notifyData.hIcon = static_cast<HICON>(
+    const int iconWidth = GetSystemMetrics(SM_CXSMICON);
+    const int iconHeight = GetSystemMetrics(SM_CYSMICON);
+    m_activeIcon = static_cast<HICON>(
         LoadImageW(m_instance, MAKEINTRESOURCEW(IDI_EVERON),
-                  IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR)
-    );
-    if (m_notifyData.hIcon) {
-        m_iconOwned = true;
+                   IMAGE_ICON, iconWidth, iconHeight, LR_DEFAULTCOLOR));
+    if (m_activeIcon) {
+        m_activeIconOwned = true;
     } else {
-        m_notifyData.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-        m_iconOwned = false; // shared system icon
+        m_activeIcon = LoadIconW(nullptr, IDI_APPLICATION);
+        m_activeIconOwned = false;
     }
+    m_disabledIcon = CreateMutedIcon(m_activeIcon, iconWidth, iconHeight);
+    m_notifyData.hIcon = m_isEnabled && m_activeIcon
+        ? m_activeIcon
+        : (m_disabledIcon ? m_disabledIcon : m_activeIcon);
 
     StringCchCopyW(m_notifyData.szTip, _countof(m_notifyData.szTip), L"Everon");
 
@@ -90,10 +170,15 @@ bool TrayIcon::ReAdd() {
 void TrayIcon::Remove() {
     if (m_notifyData.cbSize > 0) {
         Utils::ShellNotifyIconChecked(NIM_DELETE, &m_notifyData, L"remove tray icon");
-        if (m_iconOwned && m_notifyData.hIcon) {
-            DestroyIcon(m_notifyData.hIcon);
+        if (m_disabledIcon) {
+            DestroyIcon(m_disabledIcon);
+            m_disabledIcon = nullptr;
         }
-        m_iconOwned = false;
+        if (m_activeIconOwned && m_activeIcon) {
+            DestroyIcon(m_activeIcon);
+        }
+        m_activeIcon = nullptr;
+        m_activeIconOwned = false;
         m_notifyData = {};
     }
 }
@@ -177,6 +262,24 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
     Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"update tray tooltip");
 }
 
+void TrayIcon::SetEnabled(bool enabled) {
+    m_isEnabled = enabled;
+    UpdateIcon();
+}
+
+void TrayIcon::UpdateIcon() {
+    if (m_notifyData.cbSize == 0) {
+        return;
+    }
+    HICON icon = m_isEnabled ? m_activeIcon : (m_disabledIcon ? m_disabledIcon : m_activeIcon);
+    if (!icon) {
+        return;
+    }
+    m_notifyData.hIcon = icon;
+    m_notifyData.uFlags = NIF_ICON | NIF_GUID;
+    Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"update tray state icon");
+}
+
 void TrayIcon::HandleMessage(LPARAM lParam) {
     const UINT mouseMsg = LOWORD(lParam);
 
@@ -185,7 +288,9 @@ void TrayIcon::HandleMessage(LPARAM lParam) {
         case WM_CONTEXTMENU:
             ShowContextMenu();
             break;
-        case WM_LBUTTONDBLCLK:
+        case WM_LBUTTONUP:
+        case NIN_SELECT:
+        case NIN_KEYSELECT:
             if (m_onSettings) {
                 m_onSettings();
             }

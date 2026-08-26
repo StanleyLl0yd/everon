@@ -338,17 +338,11 @@ void App::ShowSettings() {
 
 void App::ShowAbout() {
     auto& loc = Localization::Instance();
-    wchar_t message[1024];
+    wchar_t message[768];
     swprintf_s(message, _countof(message),
-              L"%s\n%s\n\n%s\n- %s\n- %s\n- %s\n- %s\n\n%s\n\nStanley Lloyd\n%s",
+              L"%s\n%s\n\nStanley Lloyd\n%s\n\nhttps://github.com/StanleyLl0yd/everon",
               loc.GetString(StringID::AboutVersion),
               loc.GetString(StringID::AboutTagline),
-              loc.GetString(StringID::AboutPerfectFor),
-              loc.GetString(StringID::AboutDownloads),
-              loc.GetString(StringID::AboutPresentations),
-              loc.GetString(StringID::AboutMonitoring),
-              loc.GetString(StringID::AboutMediaPlayback),
-              loc.GetString(StringID::AboutInstructions),
               loc.GetString(StringID::AboutLicense));
 
     MessageBoxW(m_window, message,
