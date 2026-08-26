@@ -1,0 +1,27 @@
+name: Publish v2.6.1
+
+on:
+  push:
+    paths:
+      - ".github/workflows/publish-v2.6.1.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create v2.6.1 tag at verified commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: a74799d124a228eb59dab326a7f50d39c90fa855
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v2.6.1" >/dev/null 2>&1; then
+            existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v2.6.1" --jq '.object.sha')
+            test "$existing" = "$TARGET_SHA"
+            exit 0
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref='refs/tags/v2.6.1' \
+            -f sha="$TARGET_SHA"
