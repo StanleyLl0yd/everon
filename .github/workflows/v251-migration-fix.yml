@@ -1,0 +1,289 @@
+name: corrected v2.5.1 hardening migration
+
+on:
+  push:
+    branches:
+      - "codex/harden-v2.5.1"
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.event.head_commit.message == 'Run corrected v2.5.1 hardening migration'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: codex/harden-v2.5.1
+
+      - name: Apply hardening changes
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text(encoding="utf-8-sig")
+
+          def write(path, text):
+              Path(path).write_text(text, encoding="utf-8", newline="\n")
+
+          p = Path("src/Version.h")
+          s = read(p)
+          s = s.replace("#define VER_PATCH 0", "#define VER_PATCH 1")
+          s = s.replace('#define VER_FILEVERSION_STR    "2.5.0.0"', '#define VER_FILEVERSION_STR    "2.5.1.0"')
+          s = s.replace('#define VER_VERSION_STR        "2.5"', '#define VER_VERSION_STR        "2.5.1"')
+          s = s.replace('#define VER_VERSION_STR_W      L"2.5"', '#define VER_VERSION_STR_W      L"2.5.1"')
+          s = s.replace('#define VER_FILEVERSION_STR_W  L"2.5.0.0"', '#define VER_FILEVERSION_STR_W  L"2.5.1.0"')
+          write(p, s)
+
+          p = Path("src/Settings.cpp")
+          s = read(p)
+          if "#include <vector>" not in s:
+              s = s.replace("#include <strsafe.h>\n", "#include <strsafe.h>\n#include <vector>\n")
+
+          marker = "} // namespace\n\nSettings::Settings()"
+          helper = r'''std::wstring GetExecutablePath() {
+              DWORD capacity = 260;
+              while (capacity <= 32768) {
+                  std::vector<wchar_t> buffer(capacity, L'\0');
+                  SetLastError(ERROR_SUCCESS);
+                  const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), capacity);
+                  if (length == 0) {
+                      Utils::DebugLog(L"[Everon] GetModuleFileNameW failed: %lu\n", GetLastError());
+                      return {};
+                  }
+                  if (length < capacity) {
+                      return std::wstring(buffer.data(), length);
+                  }
+                  capacity *= 2;
+              }
+              Utils::DebugLog(L"[Everon] Executable path is unexpectedly long\n");
+              return {};
+          }
+
+          } // namespace
+
+          Settings::Settings()'''
+          if marker not in s:
+              raise RuntimeError("Settings namespace marker not found")
+          s = s.replace(marker, helper, 1)
+
+          read_string_pattern = re.compile(r"    auto ReadString = \[hKey\]\(const wchar_t\* name, wchar_t\* buffer, DWORD bufferSize\) -> bool \{.*?\n    \};", re.S)
+          read_string_replacement = r'''    auto ReadString = [hKey](const wchar_t* name, wchar_t* buffer, DWORD bufferSize) -> bool {
+              const size_t capacity = bufferSize / sizeof(wchar_t);
+              if (!buffer || capacity == 0) {
+                  return false;
+              }
+
+              buffer[0] = L'\0';
+              buffer[capacity - 1] = L'\0';
+
+              DWORD type = 0;
+              DWORD size = bufferSize;
+              const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
+                                                reinterpret_cast<LPBYTE>(buffer), &size);
+              if (res == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
+                  size_t terminator = size / sizeof(wchar_t);
+                  if (terminator >= capacity) {
+                      terminator = capacity - 1;
+                  }
+                  buffer[terminator] = L'\0';
+                  return true;
+              }
+              if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
+                  Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_SZ)");
+              }
+              return false;
+          };'''
+          s, count = read_string_pattern.subn(lambda _: read_string_replacement, s, count=1)
+          if count != 1:
+              raise RuntimeError("ReadString replacement failed")
+
+          old = '''    wchar_t exePath[MAX_PATH] = {};
+              GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+              // Expand environment variables if needed, then parse the first token.'''
+          new = '''    const std::wstring exePath = GetExecutablePath();
+              if (exePath.empty()) {
+                  return false;
+              }
+
+              // Expand environment variables if needed, then parse the first token.'''
+          if old not in s:
+              raise RuntimeError("IsAutoStart executable path block not found")
+          s = s.replace(old, new, 1)
+          s = s.replace("return _wcsicmp(first.c_str(), exePath) == 0;", "return _wcsicmp(first.c_str(), exePath.c_str()) == 0;", 1)
+
+          old = '''        wchar_t exePath[MAX_PATH] = {};
+                  GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+                  wchar_t quotedPath[2048] = {};
+                  StringCchPrintfW(quotedPath, _countof(quotedPath), L"\\\"%s\\\"", exePath);
+                  DWORD size = static_cast<DWORD>((wcslen(quotedPath) + 1) * sizeof(wchar_t));
+                  LONG setRes = RegSetValueExW(hKey, APP_NAME, 0, REG_SZ,
+                                               reinterpret_cast<const BYTE*>(quotedPath),
+                                               size);'''
+          new = '''        const std::wstring exePath = GetExecutablePath();
+                  if (exePath.empty()) {
+                      RegCloseKey(hKey);
+                      return false;
+                  }
+                  const std::wstring quotedPath = L"\\\"" + exePath + L"\\\"";
+                  const DWORD size = static_cast<DWORD>((quotedPath.size() + 1) * sizeof(wchar_t));
+                  LONG setRes = RegSetValueExW(hKey, APP_NAME, 0, REG_SZ,
+                                               reinterpret_cast<const BYTE*>(quotedPath.c_str()),
+                                               size);'''
+          if old not in s:
+              raise RuntimeError("SetAutoStart executable path block not found")
+          s = s.replace(old, new, 1)
+
+          needle = '''    LONG result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,
+                                             reinterpret_cast<LPBYTE>(value), &size);'''
+          repl = needle + "\n    value[_countof(value) - 1] = L'\\0';"
+          if needle not in s:
+              raise RuntimeError("Run registry read block not found")
+          s = s.replace(needle, repl, 1)
+          write(p, s)
+
+          p = Path("src/HotkeyManager.h")
+          s = read(p)
+          old = '''    bool IsValid() const {
+                  return virtualKey != 0;
+              }'''
+          new = '''    bool IsValid() const {
+                  constexpr UINT kAllowedModifiers = MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN;
+                  return virtualKey > 0 && virtualKey <= 0xFFU &&
+                         (modifiers & ~kAllowedModifiers) == 0;
+              }'''
+          if old not in s:
+              raise RuntimeError("Hotkey IsValid block not found")
+          s = s.replace(old, new, 1)
+          write(p, s)
+
+          p = Path("src/SettingsDialog.cpp")
+          s = read(p)
+          pattern = re.compile(r"void SettingsDialog::OnLanguageChanged\(HWND dialog\) \{.*?\n\}\n\nvoid SettingsDialog::OnHotkeyEnableChanged", re.S)
+          replacement = '''void SettingsDialog::OnLanguageChanged(HWND dialog) {
+              HWND languageCombo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
+              const int languageIndex = static_cast<int>(SendMessageW(languageCombo, CB_GETCURSEL, 0, 0));
+              if (languageIndex < 0) {
+                  return;
+              }
+
+              const Language language = static_cast<Language>(
+                  SendMessageW(languageCombo, CB_GETITEMDATA, languageIndex, 0));
+              if (language == m_settings->GetLanguage()) {
+                  return;
+              }
+
+              HWND keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
+              const int keyIndex = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));
+              WORD selectedKey = m_settings->GetVirtualKey();
+              if (keyIndex >= 0) {
+                  selectedKey = static_cast<WORD>(SendMessageW(keyCombo, CB_GETITEMDATA, keyIndex, 0));
+              }
+
+              const bool hotkeyEnabled =
+                  IsDlgButtonChecked(dialog, IDC_HOTKEY_ENABLE_CHECK) == BST_CHECKED;
+              HWND hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
+              const int hotkeyIndex = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCURSEL, 0, 0));
+              LPARAM selectedHotkeyData = 0;
+              if (hotkeyIndex >= 0) {
+                  selectedHotkeyData = SendMessageW(hotkeyCombo, CB_GETITEMDATA, hotkeyIndex, 0);
+              }
+
+              m_settings->SetLanguage(language);
+              UpdateDialogText(dialog);
+              PopulateKeyComboBox(keyCombo, selectedKey);
+              PopulateHotkeyComboBox(dialog);
+
+              const int hotkeyCount = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCOUNT, 0, 0));
+              for (int i = 0; i < hotkeyCount; ++i) {
+                  if (SendMessageW(hotkeyCombo, CB_GETITEMDATA, i, 0) == selectedHotkeyData) {
+                      SendMessageW(hotkeyCombo, CB_SETCURSEL, i, 0);
+                      break;
+                  }
+              }
+
+              CheckDlgButton(dialog, IDC_HOTKEY_ENABLE_CHECK,
+                             hotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
+              EnableWindow(hotkeyCombo, hotkeyEnabled);
+          }
+
+          void SettingsDialog::OnHotkeyEnableChanged'''
+          s, count = pattern.subn(lambda _: replacement, s, count=1)
+          if count != 1:
+              raise RuntimeError("OnLanguageChanged replacement failed")
+          write(p, s)
+
+          p = Path("src/app.manifest")
+          s = read(p)
+          if "requestedExecutionLevel" not in s:
+              trust = '''  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">\n    <security>\n      <requestedPrivileges>\n        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>\n      </requestedPrivileges>\n    </security>\n  </trustInfo>\n\n'''
+              s = s.replace("  <dependency>\n", trust + "  <dependency>\n", 1)
+          write(p, s)
+
+          p = Path("CMakeLists.txt")
+          s = read(p)
+          s = s.replace("project(Everon VERSION 2.5.0 LANGUAGES CXX RC)", "project(Everon VERSION 2.5.1 LANGUAGES CXX RC)")
+          s = s.replace("target_compile_options(Everon PRIVATE /W4 /permissive- /utf-8)",
+                        "target_compile_options(Everon PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)")
+          s = s.replace("target_link_options(Everon PRIVATE\n        /MANIFEST:EMBED",
+                        "target_link_options(Everon PRIVATE\n        /guard:cf\n        /CETCOMPAT\n        /MANIFEST:EMBED")
+          s = s.replace("target_compile_options(TimerModeTests PRIVATE /W4 /permissive- /utf-8)",
+                        "target_compile_options(TimerModeTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)\n        target_link_options(TimerModeTests PRIVATE /guard:cf /CETCOMPAT)")
+          test_block = '''\n    add_executable(HotkeyManagerTests\n        tests/HotkeyManagerTests.cpp\n        src/HotkeyManager.cpp\n        src/Utils.cpp\n    )\n    target_include_directories(HotkeyManagerTests PRIVATE src)\n    target_compile_definitions(HotkeyManagerTests PRIVATE UNICODE _UNICODE)\n    if(MSVC)\n        target_compile_options(HotkeyManagerTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)\n        target_link_options(HotkeyManagerTests PRIVATE /guard:cf /CETCOMPAT)\n    endif()\n    add_test(NAME HotkeyManagerTests COMMAND HotkeyManagerTests)\n'''
+          anchor = "    add_test(NAME TimerModeTests COMMAND TimerModeTests)\n"
+          if anchor not in s:
+              raise RuntimeError("CMake test anchor not found")
+          s = s.replace(anchor, anchor + test_block, 1)
+          write(p, s)
+
+          write("tests/HotkeyManagerTests.cpp", '''#include <windows.h>\n#include <iostream>\n#include "HotkeyManager.h"\n\nnamespace {\nint g_failures = 0;\n\nvoid Expect(bool condition, const char* message) {\n    if (!condition) {\n        std::cerr << "FAILED: " << message << '\\n';\n        ++g_failures;\n    }\n}\n}\n\nint main() {\n    using namespace Everon;\n\n    HotkeyConfig original;\n    original.enabled = true;\n    original.modifiers = MOD_CONTROL | MOD_SHIFT;\n    original.virtualKey = 'E';\n\n    const std::wstring serialized = HotkeyManager::HotkeyToRegistryString(original);\n    const HotkeyConfig roundTrip = HotkeyManager::StringToHotkey(serialized.c_str());\n    Expect(roundTrip == original, "hotkey registry round-trip should preserve values");\n    Expect(roundTrip.IsValid(), "normal hotkey should be valid");\n\n    const HotkeyConfig malformed = HotkeyManager::StringToHotkey(L"not-a-hotkey");\n    Expect(!malformed.enabled && !malformed.IsValid(), "malformed hotkey should fail closed");\n\n    HotkeyConfig badModifier = original;\n    badModifier.modifiers |= 0x80000000U;\n    Expect(!badModifier.IsValid(), "unknown modifier bits should be rejected");\n\n    HotkeyConfig badKey = original;\n    badKey.virtualKey = 0x100U;\n    Expect(!badKey.IsValid(), "virtual keys outside one byte should be rejected");\n\n    if (g_failures == 0) {\n        std::cout << "All HotkeyManager tests passed.\\n";\n        return 0;\n    }\n    return 1;\n}\n''')
+
+          p = Path(".github/workflows/release.yml")
+          s = read(p)
+          s, count = re.subn(r"on:\n.*?\npermissions:", '''on:\n  push:\n    tags:\n      - "v*"\n  workflow_dispatch:\n\npermissions:''', s, count=1, flags=re.S)
+          if count != 1:
+              raise RuntimeError("Release trigger replacement failed")
+          marker = "      - name: Publish GitHub Release\n"
+          if marker not in s:
+              raise RuntimeError("Release publish step not found")
+          prefix = s.split(marker, 1)[0]
+          publish = '''      - name: Publish GitHub Release\n        if: github.ref_type == 'tag'\n        shell: pwsh\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run: |\n          gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null\n          if ($LASTEXITCODE -eq 0) {\n            throw "Release $env:TAG already exists. Published releases are immutable; bump the version instead."\n          }\n\n          gh release create "$env:TAG" `\n            "build/Release/Everon.exe" `\n            "build/Release/Everon.exe.sha256" `\n            --repo "$env:GITHUB_REPOSITORY" `\n            --verify-tag `\n            --title "Everon $env:TAG" `\n            --notes-file "release-notes.md"\n          if ($LASTEXITCODE -ne 0) { throw "Failed to create release" }\n'''
+          write(p, prefix + publish)
+
+          p = Path("CHANGELOG.md")
+          s = read(p)
+          entry = '''## 2.5.1 — 2026-08-26\n\n### Fixed\n\n- Preserved unsaved key-press and hotkey selections when changing the interface language.\n- Hardened registry string parsing against malformed non-terminated values.\n- Removed the `MAX_PATH` limitation from executable-path detection used by autostart.\n\n### Security and reliability\n\n- Added explicit `asInvoker` / `uiAccess=false` execution policy to the application manifest.\n- Enabled MSVC SDL, Control Flow Guard, and CET compatibility hardening.\n- Added HotkeyManager regression tests and stricter validation of persisted hotkey values.\n- Made GitHub releases tag-driven and immutable: existing release assets are no longer overwritten.\n\n'''
+          s = s.replace("## 2.5 — 2026-08-26\n", entry + "## 2.5 — 2026-08-26\n", 1)
+          write(p, s)
+
+          p = Path("CHANGELOG.ru.md")
+          s = read(p)
+          entry = '''## 2.5.1 — 26.08.2026\n\n### Исправлено\n\n- При смене языка больше не теряются ещё не сохранённые настройки нажатия клавиши и глобальной горячей клавиши.\n- Чтение строк из реестра защищено от некорректных значений без завершающего нулевого символа.\n- Для определения пути EXE в автозапуске устранено ограничение `MAX_PATH`.\n\n### Безопасность и надёжность\n\n- В manifest явно задан запуск с обычными правами: `asInvoker`, `uiAccess=false`.\n- Включены дополнительные защиты MSVC: SDL, Control Flow Guard и CET compatibility.\n- Добавлены регрессионные тесты HotkeyManager и более строгая проверка сохранённых горячих клавиш.\n- Публикация GitHub Releases переведена на теги; уже опубликованные assets больше не перезаписываются.\n\n'''
+          s = s.replace("## 2.5 — 26.08.2026\n", entry + "## 2.5 — 26.08.2026\n", 1)
+          write(p, s)
+          '@ | python -
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Commit validated changes
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Version.h src/Settings.cpp src/HotkeyManager.h src/SettingsDialog.cpp src/app.manifest CMakeLists.txt tests/HotkeyManagerTests.cpp .github/workflows/release.yml CHANGELOG.md CHANGELOG.ru.md
+          git commit -m "Harden Everon for v2.5.1"
+          git push origin HEAD:codex/harden-v2.5.1
