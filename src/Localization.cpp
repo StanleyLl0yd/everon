@@ -67,7 +67,7 @@ static const wchar_t* const kStrings[kStrCount][kLangCount] = {
     { L"Monitoring and automation", L"Мониторинг и автоматизация", L"Surveillance et automatisation", L"Überwachung und Automatisierung", L"Monitoraggio e automazione", L"Monitoreo y automatización" }, // AboutMonitoring
     { L"Media playback", L"Воспроизведение медиа", L"Lecture multimédia", L"Medienwiedergabe", L"Riproduzione media", L"Reproducción de medios" }, // AboutMediaPlayback
     { L"Right-click tray icon for settings", L"ПКМ на иконке в трее для настроек", L"Clic droit sur l'icône pour les paramètres", L"Rechtsklick auf Tray-Symbol für Einstellungen", L"Clic destro sull'icona per le impostazioni", L"Clic derecho en el icono para configuración" }, // AboutInstructions
-    { L"MIT License - Made with C++", L"Лицензия MIT - Создано на C++", L"Licence MIT - Fait avec C++", L"MIT-Lizenz - Mit C++ erstellt", L"Licenza MIT - Realizzato con C++", L"Licencia MIT - Hecho con C++" }, // AboutLicense
+    { L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0" }, // AboutLicense
 
     // Validation messages
     { L"Period must be between 1 and 86400 seconds.\n\n1 second = minimum\n86400 seconds = 24 hours (maximum)",
