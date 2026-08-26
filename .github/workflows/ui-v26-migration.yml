@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   migrate:
-    if: github.event.head_commit.message == 'Run Everon v2.6 UI migration'
+    if: github.event.head_commit.message == 'Retry Everon v2.6 UI migration'
     runs-on: windows-latest
 
     steps:
@@ -27,9 +27,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api repos/$env:GITHUB_REPOSITORY/contents/.github/scripts/ui_v26_migrate.py?ref=main --jq .content |
-            ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($_ -replace '\s',''))) } |
-            Set-Content ui_v26_migrate.py -Encoding utf8
+          $json = gh api "repos/$env:GITHUB_REPOSITORY/contents/.github/scripts/ui_v26_migrate.py?ref=main" | ConvertFrom-Json
+          $base64 = $json.content -replace '\s',''
+          [IO.File]::WriteAllBytes('ui_v26_migrate.py', [Convert]::FromBase64String($base64))
 
       - name: Apply migration
         run: python ui_v26_migrate.py
