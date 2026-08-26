@@ -7,9 +7,9 @@ PowerManager::~PowerManager() {
     AllowSleep();
 }
 
-void PowerManager::PreventSleep(bool keepDisplayOn) {
+bool PowerManager::PreventSleep(bool keepDisplayOn) {
     if (m_isActive && m_keepDisplayOn == keepDisplayOn) {
-        return;
+        return true;
     }
 
     EXECUTION_STATE flags = ES_CONTINUOUS | ES_SYSTEM_REQUIRED;
@@ -17,26 +17,29 @@ void PowerManager::PreventSleep(bool keepDisplayOn) {
         flags |= ES_DISPLAY_REQUIRED;
     }
 
-    EXECUTION_STATE result = SetThreadExecutionState(flags);
-    if (result == 0) {
+    if (SetThreadExecutionState(flags) == 0) {
         Utils::DebugLog(L"[Everon] Failed to prevent sleep: %lu\n", GetLastError());
-        return;
+        return false;
     }
 
     m_isActive = true;
     m_keepDisplayOn = keepDisplayOn;
+    return true;
 }
 
-void PowerManager::AllowSleep() {
+bool PowerManager::AllowSleep() {
     if (!m_isActive) {
-        return;
+        return true;
     }
-    const EXECUTION_STATE prev = SetThreadExecutionState(ES_CONTINUOUS);
-    if (prev == 0) {
-		Utils::DebugLog(L"[Everon] SetThreadExecutionState(ES_CONTINUOUS) failed: %lu\n", GetLastError());
+
+    if (SetThreadExecutionState(ES_CONTINUOUS) == 0) {
+        Utils::DebugLog(L"[Everon] Failed to restore normal sleep behavior: %lu\n", GetLastError());
+        return false;
     }
+
     m_isActive = false;
     m_keepDisplayOn = false;
+    return true;
 }
 
 void PowerManager::SendKeyPress(WORD virtualKey) {
@@ -48,7 +51,6 @@ void PowerManager::SendKeyPress(WORD virtualKey) {
 
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = virtualKey;
-    inputs[0].ki.dwFlags = 0;
 
     inputs[1].type = INPUT_KEYBOARD;
     inputs[1].ki.wVk = virtualKey;
@@ -56,7 +58,7 @@ void PowerManager::SendKeyPress(WORD virtualKey) {
 
     const UINT sent = SendInput(2, inputs, sizeof(INPUT));
     if (sent != 2) {
-		Utils::DebugLog(L"[Everon] SendInput failed/sent %u: %lu\n", sent, GetLastError());
+        Utils::DebugLog(L"[Everon] SendInput failed/sent %u: %lu\n", sent, GetLastError());
     }
 }
 
