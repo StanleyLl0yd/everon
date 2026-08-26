@@ -1,0 +1,113 @@
+name: Comment audit
+
+on:
+  push:
+    paths:
+      - ".github/workflows/comment-audit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: List comments
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          roots = [Path("src"), Path("tests"), Path(".github/workflows")]
+          files = [Path("CMakeLists.txt"), Path(".gitignore")]
+          for root in roots:
+              if root.exists():
+                  files.extend(p for p in root.rglob("*") if p.is_file())
+
+          c_like = {".cpp", ".cc", ".c", ".h", ".hpp", ".rc"}
+          hash_like = {".yml", ".yaml", ".cmake", ".gitignore"}
+
+          def c_comments(text):
+              out = []
+              block = False
+              for lineno, line in enumerate(text.splitlines(), 1):
+                  i = 0
+                  quote = None
+                  while i < len(line):
+                      if block:
+                          end = line.find("*/", i)
+                          if end < 0:
+                              out.append((lineno, line.strip()))
+                              break
+                          out.append((lineno, line[i:end + 2].strip()))
+                          block = False
+                          i = end + 2
+                          continue
+                      ch = line[i]
+                      if quote:
+                          if ch == "\\":
+                              i += 2
+                              continue
+                          if ch == quote:
+                              quote = None
+                          i += 1
+                          continue
+                      if ch in {'"', "'"}:
+                          quote = ch
+                          i += 1
+                          continue
+                      if line.startswith("//", i):
+                          out.append((lineno, line[i:].strip()))
+                          break
+                      if line.startswith("/*", i):
+                          end = line.find("*/", i + 2)
+                          if end < 0:
+                              out.append((lineno, line[i:].strip()))
+                              block = True
+                              break
+                          out.append((lineno, line[i:end + 2].strip()))
+                          i = end + 2
+                          continue
+                      i += 1
+              return out
+
+          def hash_comments(text):
+              out = []
+              for lineno, line in enumerate(text.splitlines(), 1):
+                  quote = None
+                  escaped = False
+                  for i, ch in enumerate(line):
+                      if escaped:
+                          escaped = False
+                          continue
+                      if ch == "\\" and quote:
+                          escaped = True
+                          continue
+                      if ch in {'"', "'"}:
+                          if quote == ch:
+                              quote = None
+                          elif quote is None:
+                              quote = ch
+                          continue
+                      if ch == "#" and quote is None:
+                          out.append((lineno, line[i:].strip()))
+                          break
+              return out
+
+          total = 0
+          non_english = 0
+          for path in sorted(set(files)):
+              if path.suffix.lower() not in c_like | hash_like and path.name != "CMakeLists.txt":
+                  continue
+              text = path.read_text(encoding="utf-8", errors="replace")
+              items = c_comments(text) if path.suffix.lower() in c_like else hash_comments(text)
+              if path.name == "CMakeLists.txt":
+                  items = hash_comments(text)
+              for lineno, comment in items:
+                  total += 1
+                  if re.search(r"[А-Яа-яЁё]", comment):
+                      non_english += 1
+                  print(f"{path}:{lineno}: {comment}")
+          print(f"TOTAL={total}")
+          print(f"CYRILLIC={non_english}")
