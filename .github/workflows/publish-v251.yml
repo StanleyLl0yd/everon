@@ -1,0 +1,80 @@
+name: Publish Everon v2.5.1
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Publish Everon v2.5.1'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v5
+        with:
+          ref: 2e993b1ec32467adea5fc62046dc30d05981c72b
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Verify version
+        shell: pwsh
+        run: |
+          $text = Get-Content 'src/Version.h' -Raw
+          if ($text -notmatch '#define\s+VER_MAJOR\s+2' -or
+              $text -notmatch '#define\s+VER_MINOR\s+5' -or
+              $text -notmatch '#define\s+VER_PATCH\s+1') {
+            throw 'Version.h is not v2.5.1'
+          }
+
+      - name: Generate SHA-256
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash 'build/Release/Everon.exe' -Algorithm SHA256).Hash.ToLower()
+          "$hash  Everon.exe" | Set-Content 'build/Release/Everon.exe.sha256' -Encoding ascii
+          "EXE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prepare release notes
+        shell: pwsh
+        run: |
+          $raw = Get-Content 'CHANGELOG.md' -Raw
+          $match = [regex]::Match($raw, '(?ms)^## 2\.5\.1\b.*?(?=^## |\z)')
+          if (-not $match.Success) {
+            throw 'No changelog section found for v2.5.1'
+          }
+          $match.Value.Trim() | Set-Content 'release-notes.md' -Encoding utf8
+
+      - name: Publish immutable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view v2.5.1 --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw 'Release v2.5.1 already exists; refusing to overwrite it.'
+          }
+
+          gh release create v2.5.1 `
+            'build/Release/Everon.exe' `
+            'build/Release/Everon.exe.sha256' `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --target '2e993b1ec32467adea5fc62046dc30d05981c72b' `
+            --title 'Everon v2.5.1' `
+            --notes-file 'release-notes.md'
+
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Failed to publish Everon v2.5.1'
+          }
+
+          Write-Host "Published Everon v2.5.1 SHA-256: $env:EXE_SHA256"
