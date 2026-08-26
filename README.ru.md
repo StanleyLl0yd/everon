@@ -88,6 +88,10 @@ tests/               регрессионные тесты таймера
 CMakeLists.txt        воспроизводимое описание сборки
 ```
 
+## Автор
+
+**Stanley Lloyd**
+
 ## История изменений
 
 См. [CHANGELOG.ru.md](CHANGELOG.ru.md). Английская версия — [CHANGELOG.md](CHANGELOG.md).
