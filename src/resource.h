@@ -8,7 +8,6 @@
 #define IDC_KEEPDISPLAY_CHECK           1003
 #define IDC_AUTOSTART_CHECK             1004
 #define IDC_LANGUAGE_COMBO              1005
-#define IDC_HOTKEY_ENABLE_CHECK         1006
 #define IDC_HOTKEY_COMBO                1007
 #define IDC_GENERAL_GROUP               1008
 #define IDC_HOTKEYS_GROUP               1009
@@ -29,7 +28,13 @@
 #define IDC_ABOUT_AUTHOR                1024
 #define IDC_ABOUT_LICENSE               1025
 #define IDC_ABOUT_LINK                  1026
+#define IDC_TIMER_UNTIL_HINT            1027
 #define IDM_TOGGLE                      40001
 #define IDM_SETTINGS                    40002
 #define IDM_ABOUT                       40003
 #define IDM_EXIT                        40004
+#define IDM_TIMER_15                    40005
+#define IDM_TIMER_30                    40006
+#define IDM_TIMER_60                    40007
+#define IDM_TIMER_120                   40008
+#define IDM_TIMER_UNTIL                 40009
