@@ -25,6 +25,7 @@ private:
     void InitializeTimerControls(HWND dialog);
     void UpdateKeyPressControlsState(HWND dialog);
     void UpdateTimerControlsState(HWND dialog);
+    void UpdateUntilHint(HWND dialog);
     void UpdateDialogText(HWND dialog);
 
     HINSTANCE m_instance = nullptr;

@@ -8,7 +8,7 @@
 
 A lightweight native Windows tray utility that prevents automatic system sleep while it is enabled. Everon runs without a main window and is controlled from the system tray.
 
-**Source version:** 2.6.1 · **Platform:** Windows x64 · **Language:** C++17
+**Source version:** 2.7.0 · **Platform:** Windows x64 · **Language:** C++17
 
 [GitHub Releases](https://github.com/StanleyLl0yd/everon/releases)
 
@@ -18,12 +18,16 @@ A lightweight native Windows tray utility that prevents automatic system sleep w
 - Can optionally keep the display active.
 - Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from **1 second to 24 hours**.
 - Three timer modes: **Indefinitely**, **For duration**, and **Until time**.
+- Quick tray timers for **15 minutes**, **30 minutes**, **1 hour**, and **2 hours**; choosing one enables Everon immediately and replaces the current timer mode.
+- **Until time** clearly indicates when the selected time means tomorrow.
+- Duration timers use a monotonic clock while Everon is running, so changing the Windows clock does not change the active duration; a persisted UTC deadline is used to restore the timer after a restart.
 - Enable or disable Everon from the tray menu.
 - Single-click the tray icon to open **Settings**.
 - Uses a visually muted tray icon while Everon is disabled.
 - Optional configurable global hotkey to enable or disable Everon.
 - Optional start with Windows for the current user.
 - Optional notifications when Everon is enabled or disabled; timer expiration and relevant errors are also reported through notifications.
+- Retries the requested Windows power state after a transient `SetThreadExecutionState` failure and reports the problem once while retrying.
 - Six interface languages: English, Russian, French, German, Italian, and Spanish.
 - Single-instance operation: starting Everon again opens **Settings** in the running instance.
 - Restores its tray icon after Windows Explorer restarts.
@@ -41,7 +45,7 @@ The application is portable, requires no installer, and does not require adminis
 1. Download `Everon.exe` from the latest [GitHub Release](https://github.com/StanleyLl0yd/everon/releases).
 2. Run it.
 3. Use the Everon icon in the Windows system tray:
-   - right-click to enable or disable Everon, open **Settings** or **About**, or exit;
+   - right-click to enable or disable Everon, start a quick timer, open **Settings** or **About**, or exit;
    - single-click to open **Settings**.
 4. Configure display behavior, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
 

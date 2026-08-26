@@ -30,13 +30,14 @@ private:
     void OnHotkey(WPARAM wParam);
     void OnTaskbarCreated();
     void ToggleEnabled();
+    void SetQuickDuration(DWORD minutes);
     void ShowSettings();
     void ShowAbout();
     void Exit();
     void StartTimer();
     void StopTimer();
     void ArmExpireTimer(const TimerConfig& timer);
-    void UpdatePowerState();
+    bool UpdatePowerState();
     void RegisterHotkey();
     bool SaveSettings();
 
@@ -48,11 +49,14 @@ private:
     std::unique_ptr<SettingsDialog> m_settingsDialog;
     std::unique_ptr<HotkeyManager> m_hotkeyManager;
     bool m_isSettingsDialogOpen = false;
+    bool m_powerFailureNotified = false;
 
     UINT m_taskbarCreatedMessage = 0;
 
     static constexpr UINT_PTR TIMER_ID_KEYPRESS = 1;
     static constexpr UINT_PTR TIMER_ID_EXPIRE = 2;
+    static constexpr UINT_PTR TIMER_ID_POWER_RETRY = 3;
+    static constexpr UINT POWER_RETRY_INTERVAL_MS = 30U * 1000U;
 };
 
 }

@@ -29,7 +29,6 @@ static inline ULONGLONG UtcSystemTimeToFileTimeUll(const SYSTEMTIME& utc) noexce
 }
 
 static inline bool IsLeapYear(WORD year) noexcept {
-
     if ((year % 400) == 0) return true;
     if ((year % 100) == 0) return false;
     return (year % 4) == 0;
@@ -80,6 +79,16 @@ static inline void AddMinutesLocal(SYSTEMTIME& st, int minutes) noexcept {
     st.wMinute = static_cast<WORD>(total % 60);
 }
 
+static bool IsUntilNextDayAt(const SYSTEMTIME& nowLocal, const SYSTEMTIME& untilTime) noexcept {
+    if (untilTime.wHour != nowLocal.wHour) {
+        return untilTime.wHour < nowLocal.wHour;
+    }
+    if (untilTime.wMinute != nowLocal.wMinute) {
+        return untilTime.wMinute < nowLocal.wMinute;
+    }
+    return nowLocal.wSecond > 0 || nowLocal.wMilliseconds > 0;
+}
+
 static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
     SYSTEMTIME nowLocal = {};
     GetLocalTime(&nowLocal);
@@ -90,32 +99,17 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
     targetLocal.wSecond = 0;
     targetLocal.wMilliseconds = 0;
 
-    bool nextDay = false;
-    if (targetLocal.wHour < nowLocal.wHour) {
-        nextDay = true;
-    } else if (targetLocal.wHour == nowLocal.wHour) {
-        if (targetLocal.wMinute < nowLocal.wMinute) {
-            nextDay = true;
-        } else if (targetLocal.wMinute == nowLocal.wMinute) {
-
-            if (nowLocal.wSecond > 0 || nowLocal.wMilliseconds > 0) {
-                nextDay = true;
-            }
-        }
-    }
-
-    if (nextDay) {
+    if (IsUntilNextDayAt(nowLocal, untilTime)) {
         AddDaysLocal(targetLocal, 1);
     }
 
     // DST transitions can make local times invalid; probe forward to the next valid minute.
-
     SYSTEMTIME targetUtc = {};
     SYSTEMTIME probeLocal = targetLocal;
 
     bool ok = LocalToUtcSystemTime(probeLocal, targetUtc);
     if (!ok) {
-        for (int i = 0; i < 180 && !ok; ++i) { // Probe at most three hours.
+        for (int i = 0; i < 180 && !ok; ++i) {
             AddMinutesLocal(probeLocal, 1);
             ok = LocalToUtcSystemTime(probeLocal, targetUtc);
         }
@@ -161,6 +155,22 @@ static ULONGLONG ResolveTargetUtc(const TimerConfig& timer) noexcept {
     return 0;
 }
 
+static DWORD RemainingFromUtc(const TimerConfig& timer) noexcept {
+    const ULONGLONG nowUtc = NowUtcFileTimeUll();
+    const ULONGLONG targetUtc = ResolveTargetUtc(timer);
+
+    if (targetUtc == 0 || targetUtc <= nowUtc) {
+        return 0;
+    }
+
+    const ULONGLONG diff100ns = targetUtc - nowUtc;
+    const ULONGLONG milliseconds = (diff100ns + 9999ULL) / 10000ULL;
+    if (milliseconds > 0xFFFFFFFFULL) {
+        return 0xFFFFFFFFUL;
+    }
+    return static_cast<DWORD>(milliseconds);
+}
+
 bool TimerConfig::IsValid() const noexcept {
     switch (mode) {
         case TimerMode::Indefinite:
@@ -175,17 +185,31 @@ bool TimerConfig::IsValid() const noexcept {
 }
 
 void TimerConfig::ResetStartTime() noexcept {
-
     if (mode == TimerMode::Duration) {
         GetLocalTime(&startTime);
+        const ULONGLONG durationMs = static_cast<ULONGLONG>(durationMinutes) * 60ULL * 1000ULL;
         const ULONGLONG nowUtc = NowUtcFileTimeUll();
-        endTimeUtc = nowUtc + (static_cast<ULONGLONG>(durationMinutes) * 60ULL * 10000000ULL);
+        endTimeUtc = nowUtc + (durationMs * 10000ULL);
+        monotonicDeadlineMs = GetTickCount64() + durationMs;
     } else if (mode == TimerMode::UntilTime) {
         GetLocalTime(&startTime);
         endTimeUtc = ComputeNextUntilUtc(untilTime);
+        monotonicDeadlineMs = 0;
     } else {
         startTime = {};
         endTimeUtc = 0;
+        monotonicDeadlineMs = 0;
+    }
+}
+
+void TimerConfig::ResumeMonotonicDuration() noexcept {
+    if (mode != TimerMode::Duration || monotonicDeadlineMs != 0) {
+        return;
+    }
+
+    const DWORD remainingMs = RemainingFromUtc(*this);
+    if (remainingMs != 0) {
+        monotonicDeadlineMs = GetTickCount64() + static_cast<ULONGLONG>(remainingMs);
     }
 }
 
@@ -194,6 +218,16 @@ bool TimerConfig::IsExpired() const noexcept {
         return false;
     }
     return GetRemainingMilliseconds() == 0;
+}
+
+bool TimerConfig::IsUntilNextDay() const noexcept {
+    SYSTEMTIME nowLocal = {};
+    GetLocalTime(&nowLocal);
+    return IsUntilNextDay(nowLocal);
+}
+
+bool TimerConfig::IsUntilNextDay(const SYSTEMTIME& nowLocal) const noexcept {
+    return mode == TimerMode::UntilTime && IsUntilNextDayAt(nowLocal, untilTime);
 }
 
 DWORD TimerConfig::GetRemainingSeconds() const noexcept {
@@ -218,20 +252,18 @@ DWORD TimerConfig::GetRemainingMilliseconds() const noexcept {
         return INFINITE;
     }
 
-    const ULONGLONG nowUtc = NowUtcFileTimeUll();
-    const ULONGLONG targetUtc = ResolveTargetUtc(*this);
-
-    if (targetUtc == 0 || targetUtc <= nowUtc) {
-        return 0;
+    if (mode == TimerMode::Duration && monotonicDeadlineMs != 0) {
+        const ULONGLONG nowMs = GetTickCount64();
+        if (monotonicDeadlineMs <= nowMs) {
+            return 0;
+        }
+        const ULONGLONG remainingMs = monotonicDeadlineMs - nowMs;
+        return remainingMs > 0xFFFFFFFFULL
+            ? 0xFFFFFFFFUL
+            : static_cast<DWORD>(remainingMs);
     }
 
-    // Round up so zero is never reported before the actual deadline.
-    const ULONGLONG diff100ns = targetUtc - nowUtc;
-    const ULONGLONG milliseconds = (diff100ns + 10000ULL - 1ULL) / 10000ULL;
-    if (milliseconds > 0xFFFFFFFFULL) {
-        return 0xFFFFFFFFUL;
-    }
-    return static_cast<DWORD>(milliseconds);
+    return RemainingFromUtc(*this);
 }
 
 }

@@ -11,6 +11,7 @@ class Settings;
 class TrayIcon {
 public:
     using MenuCallback = std::function<void()>;
+    using DurationCallback = std::function<void(DWORD)>;
 
     explicit TrayIcon(HWND parentWindow, HINSTANCE instance);
     ~TrayIcon();
@@ -28,6 +29,7 @@ public:
     void SetSettingsCallback(MenuCallback callback) { m_onSettings = std::move(callback); }
     void SetAboutCallback(MenuCallback callback) { m_onAbout = std::move(callback); }
     void SetExitCallback(MenuCallback callback) { m_onExit = std::move(callback); }
+    void SetDurationCallback(DurationCallback callback) { m_onDuration = std::move(callback); }
 
     static constexpr UINT WM_TRAYICON = WM_APP + 1;
 
@@ -46,6 +48,7 @@ private:
     MenuCallback m_onSettings;
     MenuCallback m_onAbout;
     MenuCallback m_onExit;
+    DurationCallback m_onDuration;
 
     bool m_isEnabled = true;
 };

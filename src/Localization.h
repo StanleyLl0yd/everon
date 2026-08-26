@@ -15,12 +15,17 @@ enum class Language : unsigned char {
 };
 
 enum class StringID : unsigned short {
-
     MenuEnable,
     MenuDisable,
     MenuSettings,
     MenuAbout,
     MenuExit,
+    MenuQuickTimer,
+    MenuTimer15,
+    MenuTimer30,
+    MenuTimer60,
+    MenuTimer120,
+    MenuTimerUntil,
 
     SettingsTitle,
     SettingsGeneral,
@@ -34,7 +39,6 @@ enum class StringID : unsigned short {
     SettingsKeepDisplay,
     SettingsNotifyOnToggle,
     SettingsAutoStart,
-    SettingsHotkeyEnable,
     SettingsHotkeyLabel,
     SettingsHotkeyNone,
     SettingsTimerIndefinite,
@@ -42,30 +46,23 @@ enum class StringID : unsigned short {
     SettingsTimerUntilTime,
     SettingsTimerMinutes,
     SettingsTimerUntil,
+    SettingsTimerTomorrow,
 
     ButtonOK,
     ButtonCancel,
-    ButtonApply,
-    ButtonTest,
 
     AboutTitle,
     AboutVersion,
     AboutTagline,
-    AboutPerfectFor,
-    AboutDownloads,
-    AboutPresentations,
-    AboutMonitoring,
-    AboutMediaPlayback,
-    AboutInstructions,
     AboutLicense,
 
     ErrorInvalidPeriod,
     ErrorInvalidPeriodTitle,
     ErrorInvalidTimerTitle,
     ErrorInvalidTimerDuration,
-    ErrorInvalidTimerUntil,
     ErrorAutoStart,
     ErrorSaveSettings,
+    ErrorPowerState,
 
     TooltipDisabled,
     TooltipEnabled,
@@ -73,7 +70,6 @@ enum class StringID : unsigned short {
     NotifyEnabled,
     NotifyDisabled,
     NotifyTimerExpired,
-    NotifyHotkeyRegistered,
     NotifyHotkeyFailed,
 
     ErrorTrayIcon,

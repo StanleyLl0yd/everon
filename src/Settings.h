@@ -37,6 +37,7 @@ public:
     void SetLanguage(Language value) noexcept;
     void SetHotkeyConfig(const HotkeyConfig& value) noexcept;
     void SetTimerConfig(const TimerConfig& value) noexcept;
+    void SetTimerRuntimeDeadline(ULONGLONG value) noexcept { m_timerConfig.monotonicDeadlineMs = value; }
 
     bool LoadFromRegistry();
     bool SaveToRegistry();

@@ -58,20 +58,58 @@ int main() {
     duration.durationMinutes = 5;
     duration.ResetStartTime();
     const DWORD durationRemaining = duration.GetRemainingMilliseconds();
-    Expect(duration.endTimeUtc != 0, "duration reset should pin an UTC end time");
+    Expect(duration.endTimeUtc != 0, "duration reset should pin a UTC end time");
+    Expect(duration.monotonicDeadlineMs != 0, "duration reset should pin a monotonic deadline");
     Expect(durationRemaining > 4U * 60U * 1000U,
            "fresh five-minute duration should have more than four minutes remaining");
     Expect(durationRemaining <= 5U * 60U * 1000U,
            "fresh five-minute duration should not exceed five minutes");
+
+    TimerConfig monotonic = duration;
+    monotonic.endTimeUtc = 1;
+    Expect(monotonic.GetRemainingMilliseconds() > 0,
+           "active duration should prefer the monotonic deadline over wall-clock UTC");
+
+    TimerConfig resumed = duration;
+    resumed.monotonicDeadlineMs = 0;
+    resumed.ResumeMonotonicDuration();
+    Expect(resumed.monotonicDeadlineMs != 0,
+           "persisted duration should resume with a monotonic deadline");
+    Expect(resumed.GetRemainingMilliseconds() > 0,
+           "resumed duration should retain time remaining");
 
     TimerConfig until;
     until.mode = TimerMode::UntilTime;
     until.untilTime = TwoMinutesFromNowLocal();
     Expect(until.IsValid(), "valid until-time should pass validation");
     until.ResetStartTime();
-    Expect(until.endTimeUtc != 0, "until-time reset should pin an UTC end time");
+    Expect(until.endTimeUtc != 0, "until-time reset should pin a UTC end time");
     Expect(until.GetRemainingMilliseconds() > 0,
            "future until-time should have time remaining");
+
+    SYSTEMTIME fixedNow{};
+    fixedNow.wYear = 2026;
+    fixedNow.wMonth = 8;
+    fixedNow.wDay = 26;
+    fixedNow.wHour = 20;
+    fixedNow.wMinute = 30;
+    fixedNow.wSecond = 15;
+
+    TimerConfig dayCheck;
+    dayCheck.mode = TimerMode::UntilTime;
+    dayCheck.untilTime.wHour = 20;
+    dayCheck.untilTime.wMinute = 29;
+    Expect(dayCheck.IsUntilNextDay(fixedNow), "earlier time-of-day should resolve to tomorrow");
+
+    dayCheck.untilTime.wMinute = 31;
+    Expect(!dayCheck.IsUntilNextDay(fixedNow), "later time-of-day should resolve to today");
+
+    dayCheck.untilTime.wMinute = 30;
+    Expect(dayCheck.IsUntilNextDay(fixedNow), "elapsed current minute should resolve to tomorrow");
+
+    fixedNow.wSecond = 0;
+    fixedNow.wMilliseconds = 0;
+    Expect(!dayCheck.IsUntilNextDay(fixedNow), "exact current minute should resolve to today");
 
     TimerConfig invalidUntil = until;
     invalidUntil.untilTime.wHour = 24;
