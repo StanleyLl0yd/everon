@@ -1,0 +1,66 @@
+name: Everon v2.6 final UI fixes
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ui-v26-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message == 'Apply final Everon v2.6 UI fixes'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout v2.6 branch
+        uses: actions/checkout@v5
+        with:
+          ref: codex/ui-v2.6
+          fetch-depth: 0
+
+      - name: Apply fixes
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+
+          p = Path('src/SettingsDialog.cpp')
+          s = p.read_text(encoding='utf-8-sig')
+          old = '''        if (items[i].modifiers == currentHotkey.modifiers &&\n            items[i].vk == currentHotkey.virtualKey) {\n            selectedIndex = index;\n        }'''
+          new = '''        if (currentHotkey.enabled &&\n            items[i].modifiers == currentHotkey.modifiers &&\n            items[i].vk == currentHotkey.virtualKey) {\n            selectedIndex = index;\n        }'''
+          if old not in s:
+              raise RuntimeError('hotkey migration target not found')
+          p.write_text(s.replace(old, new), encoding='utf-8', newline='\n')
+
+          p = Path('src/app.rc')
+          s = p.read_text(encoding='utf-8-sig')
+          s = s.replace('IDD_SETTINGS DIALOGEX 0, 0, 330, 300', 'IDD_SETTINGS DIALOGEX 0, 0, 330, 312')
+          old = '''    GROUPBOX        "Hotkey", IDC_HOTKEYS_GROUP, 10, 216, 310, 43\n    LTEXT           "Toggle hotkey:", IDC_HOTKEY_LABEL, 22, 233, 88, 9\n    COMBOBOX        IDC_HOTKEY_COMBO, 120, 230, 188, 150, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP\n\n    DEFPUSHBUTTON   "OK", IDOK, 210, 275, 50, 16\n    PUSHBUTTON      "Cancel", IDCANCEL, 268, 275, 50, 16'''
+          new = '''    GROUPBOX        "Hotkey", IDC_HOTKEYS_GROUP, 10, 216, 310, 55\n    LTEXT           "Toggle hotkey:", IDC_HOTKEY_LABEL, 22, 231, 286, 9\n    COMBOBOX        IDC_HOTKEY_COMBO, 22, 243, 286, 150, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP\n\n    DEFPUSHBUTTON   "OK", IDOK, 210, 287, 50, 16\n    PUSHBUTTON      "Cancel", IDCANCEL, 268, 287, 50, 16'''
+          if old not in s:
+              raise RuntimeError('hotkey layout target not found')
+          p.write_text(s.replace(old, new), encoding='utf-8', newline='\n')
+          '@ | python -
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Commit fixes
+        shell: pwsh
+        run: |
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src/SettingsDialog.cpp src/app.rc
+          git diff --cached --check
+          git commit -m "Polish Everon v2.6 settings UX"
+          git push origin HEAD:codex/ui-v2.6
