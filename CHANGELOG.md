@@ -7,6 +7,21 @@ All notable changes to Everon are documented in this file.
 
 ---
 
+## 2.7.0 — 2026-08-26
+
+### Added
+
+- Added quick tray timers for 15 minutes, 30 minutes, 1 hour, and 2 hours.
+- Added a localized Tomorrow indicator when an Until time selection resolves to the next day.
+- Added automatic retry and a single warning notification when Windows temporarily rejects the requested power state.
+
+### Changed
+
+- Duration timers now use a monotonic clock while Everon is running, so system clock changes do not alter the active duration. A persisted UTC deadline remains the restart recovery source.
+- Power-state bookkeeping now changes only after `SetThreadExecutionState` succeeds.
+- Expanded timer regression coverage for monotonic timing, restart recovery, and next-day time selection.
+- Removed obsolete localization entries that were no longer used by the current interface.
+
 ## 2.6.1 — 2026-08-26
 
 ### Changed
