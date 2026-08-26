@@ -215,7 +215,8 @@ void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) {
         LPARAM data = MAKELPARAM(items[i].modifiers, items[i].vk);
         SendMessageW(combo, CB_SETITEMDATA, index, data);
 
-        if (items[i].modifiers == currentHotkey.modifiers &&
+        if (currentHotkey.enabled &&
+            items[i].modifiers == currentHotkey.modifiers &&
             items[i].vk == currentHotkey.virtualKey) {
             selectedIndex = index;
         }
