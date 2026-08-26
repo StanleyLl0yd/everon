@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Everon VERSION 2.5.0 LANGUAGES CXX RC)
+project(Everon VERSION 2.5.1 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "Everon is a native Windows application and can only be built on Windows.")
@@ -30,8 +30,10 @@ target_compile_definitions(Everon PRIVATE UNICODE _UNICODE)
 target_link_libraries(Everon PRIVATE comctl32 shell32 advapi32)
 
 if(MSVC)
-    target_compile_options(Everon PRIVATE /W4 /permissive- /utf-8)
+    target_compile_options(Everon PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
     target_link_options(Everon PRIVATE
+        /guard:cf
+        /CETCOMPAT
         /MANIFEST:EMBED
         "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/src/app.manifest"
     )
@@ -50,8 +52,22 @@ if(BUILD_TESTING)
     target_compile_definitions(TimerModeTests PRIVATE UNICODE _UNICODE)
 
     if(MSVC)
-        target_compile_options(TimerModeTests PRIVATE /W4 /permissive- /utf-8)
+        target_compile_options(TimerModeTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        target_link_options(TimerModeTests PRIVATE /guard:cf /CETCOMPAT)
     endif()
 
     add_test(NAME TimerModeTests COMMAND TimerModeTests)
+
+    add_executable(HotkeyManagerTests
+        tests/HotkeyManagerTests.cpp
+        src/HotkeyManager.cpp
+        src/Utils.cpp
+    )
+    target_include_directories(HotkeyManagerTests PRIVATE src)
+    target_compile_definitions(HotkeyManagerTests PRIVATE UNICODE _UNICODE)
+    if(MSVC)
+        target_compile_options(HotkeyManagerTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        target_link_options(HotkeyManagerTests PRIVATE /guard:cf /CETCOMPAT)
+    endif()
+    add_test(NAME HotkeyManagerTests COMMAND HotkeyManagerTests)
 endif()

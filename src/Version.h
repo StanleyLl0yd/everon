@@ -5,7 +5,7 @@
 
 #define VER_MAJOR 2
 #define VER_MINOR 5
-#define VER_PATCH 0
+#define VER_PATCH 1
 #define VER_BUILD 0
 
 // For VS_VERSION_INFO numeric fields
@@ -13,10 +13,10 @@
 #define VER_PRODUCTVERSION     VER_FILEVERSION
 
 // For VS_VERSION_INFO string fields
-#define VER_FILEVERSION_STR    "2.5.0.0"
+#define VER_FILEVERSION_STR    "2.5.1.0"
 #define VER_PRODUCTVERSION_STR VER_FILEVERSION_STR
 
 // For UI (About, etc.)
-#define VER_VERSION_STR        "2.5"
-#define VER_VERSION_STR_W      L"2.5"
-#define VER_FILEVERSION_STR_W  L"2.5.0.0"
+#define VER_VERSION_STR        "2.5.1"
+#define VER_VERSION_STR_W      L"2.5.1"
+#define VER_FILEVERSION_STR_W  L"2.5.1.0"

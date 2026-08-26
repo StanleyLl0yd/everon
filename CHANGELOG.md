@@ -4,6 +4,21 @@
 
 All notable changes to Everon are documented in this file.
 
+## 2.5.1 — 2026-08-26
+
+### Fixed
+
+- Preserved unsaved key-press and hotkey selections when changing the interface language.
+- Hardened registry string parsing against malformed non-terminated values.
+- Removed the `MAX_PATH` limitation from executable-path detection used by autostart.
+
+### Security and reliability
+
+- Added explicit `asInvoker` / `uiAccess=false` execution policy to the application manifest.
+- Enabled MSVC SDL, Control Flow Guard, and CET compatibility hardening.
+- Added HotkeyManager regression tests and stricter validation of persisted hotkey values.
+- Made GitHub releases tag-driven and immutable: existing release assets are no longer overwritten.
+
 ## 2.5 — 2026-08-26
 
 ### Changed

@@ -718,27 +718,50 @@ void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) {
 }
 
 void SettingsDialog::OnLanguageChanged(HWND dialog) {
-    HWND combo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
-    int index = static_cast<int>(SendMessageW(combo, CB_GETCURSEL, 0, 0));
-
-    if (index >= 0) {
-        Language lang = static_cast<Language>(
-            SendMessageW(combo, CB_GETITEMDATA, index, 0)
-        );
-
-        if (lang == m_settings->GetLanguage()) {
-            return;
-        }
-
-        m_settings->SetLanguage(lang);
-        UpdateDialogText(dialog);
-        PopulateKeyComboBox(GetDlgItem(dialog, IDC_KEY_COMBO), m_settings->GetVirtualKey());
-        PopulateHotkeyComboBox(dialog);
-
-        HotkeyConfig hotkey = m_settings->GetHotkeyConfig();
-        CheckDlgButton(dialog, IDC_HOTKEY_ENABLE_CHECK,
-                      hotkey.enabled ? BST_CHECKED : BST_UNCHECKED);
+    HWND languageCombo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
+    const int languageIndex = static_cast<int>(SendMessageW(languageCombo, CB_GETCURSEL, 0, 0));
+    if (languageIndex < 0) {
+        return;
     }
+
+    const Language language = static_cast<Language>(
+        SendMessageW(languageCombo, CB_GETITEMDATA, languageIndex, 0));
+    if (language == m_settings->GetLanguage()) {
+        return;
+    }
+
+    HWND keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
+    const int keyIndex = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));
+    WORD selectedKey = m_settings->GetVirtualKey();
+    if (keyIndex >= 0) {
+        selectedKey = static_cast<WORD>(SendMessageW(keyCombo, CB_GETITEMDATA, keyIndex, 0));
+    }
+
+    const bool hotkeyEnabled =
+        IsDlgButtonChecked(dialog, IDC_HOTKEY_ENABLE_CHECK) == BST_CHECKED;
+    HWND hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
+    const int hotkeyIndex = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCURSEL, 0, 0));
+    LPARAM selectedHotkeyData = 0;
+    if (hotkeyIndex >= 0) {
+        selectedHotkeyData = SendMessageW(hotkeyCombo, CB_GETITEMDATA, hotkeyIndex, 0);
+    }
+
+    m_settings->SetLanguage(language);
+    UpdateDialogText(dialog);
+    PopulateKeyComboBox(keyCombo, selectedKey);
+    PopulateHotkeyComboBox(dialog);
+
+    const int hotkeyCount = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCOUNT, 0, 0));
+    for (int i = 0; i < hotkeyCount; ++i) {
+        if (SendMessageW(hotkeyCombo, CB_GETITEMDATA, i, 0) == selectedHotkeyData) {
+            SendMessageW(hotkeyCombo, CB_SETCURSEL, i, 0);
+            break;
+        }
+    }
+
+    CheckDlgButton(dialog, IDC_HOTKEY_ENABLE_CHECK,
+                   hotkeyEnabled ? BST_CHECKED : BST_UNCHECKED);
+    EnableWindow(hotkeyCombo, hotkeyEnabled);
 }
 
 void SettingsDialog::OnHotkeyEnableChanged(HWND dialog) {

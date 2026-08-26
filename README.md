@@ -88,6 +88,10 @@ tests/               Timer regression tests
 CMakeLists.txt        Reproducible build definition
 ```
 
+## Author
+
+**Stanley Lloyd**
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md). A Russian version is available in [CHANGELOG.ru.md](CHANGELOG.ru.md).
