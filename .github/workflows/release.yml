@@ -3,12 +3,8 @@ name: Release
 # Builds, tests, and publishes the version declared in src/Version.h.
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
-    paths:
-      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 permissions:
@@ -80,42 +76,21 @@ jobs:
           $match.Value.Trim() | Set-Content "release-notes.md" -Encoding utf8
 
       - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
-          $releaseExists = ($LASTEXITCODE -eq 0)
-
-          if ($releaseExists) {
-            gh release upload "$env:TAG" `
-              "build/Release/Everon.exe" `
-              "build/Release/Everon.exe.sha256" `
-              --repo "$env:GITHUB_REPOSITORY" `
-              --clobber
-            if ($LASTEXITCODE -ne 0) { throw "Failed to update release assets" }
-
-            gh release edit "$env:TAG" `
-              --repo "$env:GITHUB_REPOSITORY" `
-              --title "Everon $env:TAG" `
-              --notes-file "release-notes.md"
-            if ($LASTEXITCODE -ne 0) { throw "Failed to update release metadata" }
-          } elseif ("${{ github.ref_type }}" -eq "tag") {
-            gh release create "$env:TAG" `
-              "build/Release/Everon.exe" `
-              "build/Release/Everon.exe.sha256" `
-              --repo "$env:GITHUB_REPOSITORY" `
-              --verify-tag `
-              --title "Everon $env:TAG" `
-              --notes-file "release-notes.md"
-            if ($LASTEXITCODE -ne 0) { throw "Failed to create release" }
-          } else {
-            gh release create "$env:TAG" `
-              "build/Release/Everon.exe" `
-              "build/Release/Everon.exe.sha256" `
-              --repo "$env:GITHUB_REPOSITORY" `
-              --target "$env:GITHUB_SHA" `
-              --title "Everon $env:TAG" `
-              --notes-file "release-notes.md"
-            if ($LASTEXITCODE -ne 0) { throw "Failed to create release" }
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $env:TAG already exists. Published releases are immutable; bump the version instead."
           }
+
+          gh release create "$env:TAG" `
+            "build/Release/Everon.exe" `
+            "build/Release/Everon.exe.sha256" `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --verify-tag `
+            --title "Everon $env:TAG" `
+            --notes-file "release-notes.md"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create release" }
