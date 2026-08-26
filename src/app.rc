@@ -32,6 +32,7 @@ BEGIN
     LTEXT           "minutes (5-1440)", IDC_TIMER_DURATION_LABEL, 178, 172, 125, 9
     CONTROL         "Until time:", IDC_TIMER_UNTIL, "Button", BS_AUTORADIOBUTTON, 22, 190, 90, 10
     CONTROL         "", IDC_TIMER_UNTIL_TIME, "SysDateTimePick32", DTS_TIMEFORMAT | WS_TABSTOP, 120, 187, 105, 15
+    LTEXT           "", IDC_TIMER_UNTIL_HINT, 232, 190, 76, 9
 
     GROUPBOX        "Hotkey", IDC_HOTKEYS_GROUP, 10, 216, 310, 55
     LTEXT           "Toggle hotkey:", IDC_HOTKEY_LABEL, 22, 231, 286, 9
