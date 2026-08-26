@@ -28,7 +28,7 @@ bool SettingsDialog::Show(HWND parent, Settings& settings) {
     }
 
     m_settings = nullptr;
-    return (result == IDOK);
+    return result == IDOK;
 }
 
 INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
@@ -80,13 +80,25 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
                     return TRUE;
             }
             break;
+        case WM_NOTIFY: {
+            const auto* header = reinterpret_cast<const NMHDR*>(lParam);
+            if (header && header->idFrom == IDC_TIMER_UNTIL_TIME &&
+                header->code == DTN_DATETIMECHANGE) {
+                instance->UpdateUntilHint(dialog);
+                return TRUE;
+            }
+            break;
+        }
     }
 
     return FALSE;
 }
 
 void SettingsDialog::OnInitDialog(HWND dialog) {
-    if (!m_settings) return;
+    if (!m_settings) {
+        return;
+    }
+
     SetDlgItemInt(dialog, IDC_PERIOD_EDIT, m_settings->GetPeriodSec(), FALSE);
     CheckDlgButton(dialog, IDC_KEEPDISPLAY_CHECK,
                   m_settings->GetKeepDisplayOn() ? BST_CHECKED : BST_UNCHECKED);
@@ -123,6 +135,7 @@ void SettingsDialog::UpdateDialogText(HWND dialog) {
     SetDlgItemTextW(dialog, IDC_HOTKEY_LABEL, loc.GetString(StringID::SettingsHotkeyLabel));
     SetDlgItemTextW(dialog, IDOK, loc.GetString(StringID::ButtonOK));
     SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(StringID::ButtonCancel));
+    UpdateUntilHint(dialog);
 }
 
 void SettingsDialog::PopulateLanguageComboBox(HWND dialog) {
@@ -271,7 +284,9 @@ void SettingsDialog::OnKeyPressChanged(HWND dialog) {
 }
 
 bool SettingsDialog::OnOkClicked(HWND dialog) {
-    if (!m_settings) return false;
+    if (!m_settings) {
+        return false;
+    }
 
     auto& loc = Localization::Instance();
 
@@ -296,9 +311,9 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         period = m_settings->GetPeriodSec();
     }
 
-    const bool keepDisplayOn = (IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED);
-    const bool notifyOnToggle = (IsDlgButtonChecked(dialog, IDC_NOTIFY_TOGGLE_CHECK) == BST_CHECKED);
-    const bool autoStart = (IsDlgButtonChecked(dialog, IDC_AUTOSTART_CHECK) == BST_CHECKED);
+    const bool keepDisplayOn = IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED;
+    const bool notifyOnToggle = IsDlgButtonChecked(dialog, IDC_NOTIFY_TOGGLE_CHECK) == BST_CHECKED;
+    const bool autoStart = IsDlgButtonChecked(dialog, IDC_AUTOSTART_CHECK) == BST_CHECKED;
 
     HotkeyConfig hotkey = {};
     HWND hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
@@ -347,16 +362,18 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         timer.untilTime.wSecond = 0;
         timer.untilTime.wMilliseconds = 0;
     }
-    // Reset runtime state when the timer configuration changes.
+
     const bool timerChanged =
-        (timer.mode != oldTimer.mode) ||
+        timer.mode != oldTimer.mode ||
         (timer.mode == TimerMode::Duration && timer.durationMinutes != oldTimer.durationMinutes) ||
         (timer.mode == TimerMode::UntilTime &&
-            (timer.untilTime.wHour != oldTimer.untilTime.wHour || timer.untilTime.wMinute != oldTimer.untilTime.wMinute));
+         (timer.untilTime.wHour != oldTimer.untilTime.wHour ||
+          timer.untilTime.wMinute != oldTimer.untilTime.wMinute));
 
     if (timerChanged || timer.mode == TimerMode::Indefinite) {
         timer.startTime = {};
         timer.endTimeUtc = 0;
+        timer.monotonicDeadlineMs = 0;
     }
 
     m_settings->SetPeriodSec(period);
@@ -418,19 +435,42 @@ void SettingsDialog::UpdateKeyPressControlsState(HWND dialog) {
     if (selection >= 0) {
         virtualKey = static_cast<WORD>(SendMessageW(combo, CB_GETITEMDATA, selection, 0));
     }
-    const BOOL enabled = (virtualKey != 0) ? TRUE : FALSE;
+    const BOOL enabled = virtualKey != 0 ? TRUE : FALSE;
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_EDIT), enabled);
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_LABEL), enabled);
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_SECONDS_LABEL), enabled);
 }
 
 void SettingsDialog::UpdateTimerControlsState(HWND dialog) {
-    BOOL duration = (IsDlgButtonChecked(dialog, IDC_TIMER_DURATION) == BST_CHECKED);
-    BOOL until = (IsDlgButtonChecked(dialog, IDC_TIMER_UNTIL) == BST_CHECKED);
+    const BOOL duration = IsDlgButtonChecked(dialog, IDC_TIMER_DURATION) == BST_CHECKED;
+    const BOOL until = IsDlgButtonChecked(dialog, IDC_TIMER_UNTIL) == BST_CHECKED;
 
     EnableWindow(GetDlgItem(dialog, IDC_TIMER_DURATION_EDIT), duration);
     EnableWindow(GetDlgItem(dialog, IDC_TIMER_DURATION_LABEL), duration);
     EnableWindow(GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME), until);
+    EnableWindow(GetDlgItem(dialog, IDC_TIMER_UNTIL_HINT), until);
+    UpdateUntilHint(dialog);
+}
+
+void SettingsDialog::UpdateUntilHint(HWND dialog) {
+    if (IsDlgButtonChecked(dialog, IDC_TIMER_UNTIL) != BST_CHECKED) {
+        SetDlgItemTextW(dialog, IDC_TIMER_UNTIL_HINT, L"");
+        return;
+    }
+
+    SYSTEMTIME selected = {};
+    if (DateTime_GetSystemtime(GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME), &selected) != GDT_VALID) {
+        SetDlgItemTextW(dialog, IDC_TIMER_UNTIL_HINT, L"");
+        return;
+    }
+
+    TimerConfig timer;
+    timer.mode = TimerMode::UntilTime;
+    timer.untilTime = selected;
+    SetDlgItemTextW(dialog, IDC_TIMER_UNTIL_HINT,
+                    timer.IsUntilNextDay()
+                        ? Localization::Instance().GetString(StringID::SettingsTimerTomorrow)
+                        : L"");
 }
 
 void SettingsDialog::OnTimerModeChanged(HWND dialog) {
