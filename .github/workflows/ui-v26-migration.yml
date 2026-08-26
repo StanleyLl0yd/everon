@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   migrate:
-    if: github.event.head_commit.message == 'Retry Everon v2.6 UI migration'
+    if: github.event.head_commit.message == 'Retry Everon v2.6 UI migration after About fix'
     runs-on: windows-latest
 
     steps:
@@ -33,6 +33,32 @@ jobs:
 
       - name: Apply migration
         run: python ui_v26_migrate.py
+
+      - name: Repair generated About block
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          p = Path('src/App.cpp')
+          s = p.read_text(encoding='utf-8-sig')
+          start = s.index('void App::ShowAbout() {')
+          end = s.index('\nvoid App::OnTaskbarCreated()', start)
+          replacement = r'''void App::ShowAbout() {
+              auto& loc = Localization::Instance();
+              wchar_t message[768];
+              swprintf_s(message, _countof(message),
+                        L"%s\n%s\n\nStanley Lloyd\n%s\n\nhttps://github.com/StanleyLl0yd/everon",
+                        loc.GetString(StringID::AboutVersion),
+                        loc.GetString(StringID::AboutTagline),
+                        loc.GetString(StringID::AboutLicense));
+
+              MessageBoxW(m_window, message,
+                         loc.GetString(StringID::MenuAbout),
+                         MB_OK | MB_ICONINFORMATION);
+          }
+          '''
+          p.write_text(s[:start] + replacement + s[end:], encoding='utf-8', newline='\n')
+          '@ | python -
 
       - name: Configure
         run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
