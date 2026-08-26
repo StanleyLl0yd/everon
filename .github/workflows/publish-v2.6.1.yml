@@ -9,19 +9,94 @@ permissions:
   contents: write
 
 jobs:
-  tag:
-    runs-on: ubuntu-latest
+  publish:
+    name: Build, test and publish
+    runs-on: windows-latest
+
     steps:
-      - name: Create v2.6.1 tag at verified commit
+      - name: Checkout verified source
+        uses: actions/checkout@v5
+        with:
+          ref: a74799d124a228eb59dab326a7f50d39c90fa855
+
+      - name: Verify tag and release state
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: a74799d124a228eb59dab326a7f50d39c90fa855
+          TAG: v2.6.1
         run: |
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v2.6.1" >/dev/null 2>&1; then
-            existing=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v2.6.1" --jq '.object.sha')
-            test "$existing" = "$TARGET_SHA"
-            exit 0
-          fi
-          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref='refs/tags/v2.6.1' \
-            -f sha="$TARGET_SHA"
+          $actual = (gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:TAG" --jq '.object.sha').Trim()
+          if ($actual -ne $env:TARGET_SHA) {
+            throw "Tag $env:TAG points to $actual instead of $env:TARGET_SHA"
+          }
+
+          gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $env:TAG already exists; refusing to overwrite it"
+          }
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Verify version
+        shell: pwsh
+        run: |
+          $text = Get-Content "src/Version.h" -Raw
+          if ($text -notmatch '(?m)^#define\s+VER_MAJOR\s+2\s*$' -or
+              $text -notmatch '(?m)^#define\s+VER_MINOR\s+6\s*$' -or
+              $text -notmatch '(?m)^#define\s+VER_PATCH\s+1\s*$') {
+            throw "Version.h is not 2.6.1"
+          }
+
+      - name: Generate SHA-256
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash "build/Release/Everon.exe" -Algorithm SHA256).Hash.ToLower()
+          "$hash  Everon.exe" | Set-Content "build/Release/Everon.exe.sha256" -Encoding ascii
+          "EXE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prepare release notes
+        shell: pwsh
+        run: |
+          $raw = Get-Content "CHANGELOG.md" -Raw
+          $match = [regex]::Match($raw, '(?ms)^## 2\.6\.1\b.*?(?=^## |\z)')
+          if (-not $match.Success) {
+            throw "No changelog section found for 2.6.1"
+          }
+          $match.Value.Trim() | Set-Content "release-notes.md" -Encoding utf8
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v2.6.1
+        run: |
+          gh release create "$env:TAG" `
+            "build/Release/Everon.exe" `
+            "build/Release/Everon.exe.sha256" `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --verify-tag `
+            --title "Everon $env:TAG" `
+            --notes-file "release-notes.md"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to create release $env:TAG"
+          }
+
+      - name: Verify published release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v2.6.1
+        run: |
+          $release = gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease | ConvertFrom-Json
+          if ($release.tagName -ne $env:TAG -or $release.isDraft -or $release.isPrerelease) {
+            throw "Published release verification failed"
+          }
+          Write-Host "Published $env:TAG with Everon.exe SHA-256 $env:EXE_SHA256"
