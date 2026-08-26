@@ -1,0 +1,65 @@
+name: author metadata patch
+
+on:
+  push:
+    branches:
+      - "codex/harden-v2.5.1"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Add Stanley Lloyd author metadata'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: codex/harden-v2.5.1
+
+      - name: Add author to About and docs
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+
+          p = Path("src/App.cpp")
+          s = p.read_text(encoding="utf-8-sig")
+          old = 'L"%s\\n%s\\n\\n%s\\n- %s\\n- %s\\n- %s\\n- %s\\n\\n%s\\n%s",'
+          new = 'L"%s\\n%s\\n\\n%s\\n- %s\\n- %s\\n- %s\\n- %s\\n\\n%s\\n\\nStanley Lloyd\\n%s",'
+          if old not in s:
+              raise RuntimeError("About format string not found")
+          s = s.replace(old, new, 1)
+          p.write_text(s, encoding="utf-8", newline="\n")
+
+          for path, heading in [("README.md", "## Author"), ("README.ru.md", "## Автор")]:
+              p = Path(path)
+              s = p.read_text(encoding="utf-8-sig")
+              if "Stanley Lloyd" not in s:
+                  marker = "## Changelog" if path == "README.md" else "## История изменений"
+                  block = f"{heading}\n\n**Stanley Lloyd**\n\n"
+                  if marker not in s:
+                      raise RuntimeError(f"README marker not found: {path}")
+                  s = s.replace(marker, block + marker, 1)
+                  p.write_text(s, encoding="utf-8", newline="\n")
+          '@ | python -
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Commit validated changes
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.cpp README.md README.ru.md
+          git commit -m "Show Stanley Lloyd as author"
+          git push origin HEAD:codex/harden-v2.5.1
