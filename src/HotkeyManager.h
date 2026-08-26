@@ -13,7 +13,9 @@ struct HotkeyConfig {
     UINT virtualKey = 0; // VK_*
 
     bool IsValid() const {
-        return virtualKey != 0;
+        constexpr UINT kAllowedModifiers = MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN;
+        return virtualKey > 0 && virtualKey <= 0xFFU &&
+               (modifiers & ~kAllowedModifiers) == 0;
     }
 
     bool operator==(const HotkeyConfig& other) const {

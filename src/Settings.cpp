@@ -4,6 +4,7 @@
 #include "TimerMode.h"
 #include "Utils.h"
 #include <strsafe.h>
+#include <vector>
 
 namespace Everon {
 
@@ -26,6 +27,25 @@ bool IsSameTimerConfig(const TimerConfig& a, const TimerConfig& b) noexcept {
            IsSameSystemTime(a.untilTime, b.untilTime) &&
            IsSameSystemTime(a.startTime, b.startTime) &&
            a.endTimeUtc == b.endTimeUtc;
+}
+
+std::wstring GetExecutablePath() {
+    DWORD capacity = 260;
+    while (capacity <= 32768) {
+        std::vector<wchar_t> buffer(capacity, L'\0');
+        SetLastError(ERROR_SUCCESS);
+        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), capacity);
+        if (length == 0) {
+            Utils::DebugLog(L"[Everon] GetModuleFileNameW failed: %lu\n", GetLastError());
+            return {};
+        }
+        if (length < capacity) {
+            return std::wstring(buffer.data(), length);
+        }
+        capacity *= 2;
+    }
+    Utils::DebugLog(L"[Everon] Executable path is unexpectedly long\n");
+    return {};
 }
 
 } // namespace
@@ -160,18 +180,31 @@ bool Settings::LoadFromRegistry() {
     };
 
     auto ReadString = [hKey](const wchar_t* name, wchar_t* buffer, DWORD bufferSize) -> bool {
-        DWORD type = 0;
-        DWORD size = bufferSize;
-        const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
-                                          reinterpret_cast<LPBYTE>(buffer), &size);
-        if (res == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
-            return true;
-        }
-        if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_SZ)");
-        }
+    const size_t capacity = bufferSize / sizeof(wchar_t);
+    if (!buffer || capacity == 0) {
         return false;
-    };
+    }
+
+    buffer[0] = L'\0';
+    buffer[capacity - 1] = L'\0';
+
+    DWORD type = 0;
+    DWORD size = bufferSize;
+    const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
+                                      reinterpret_cast<LPBYTE>(buffer), &size);
+    if (res == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
+        size_t terminator = size / sizeof(wchar_t);
+        if (terminator >= capacity) {
+            terminator = capacity - 1;
+        }
+        buffer[terminator] = L'\0';
+        return true;
+    }
+    if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
+        Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_SZ)");
+    }
+    return false;
+};
 
     DWORD tempDword = 0;
     if (ReadDword(L"PeriodSec", tempDword)) {
@@ -375,6 +408,7 @@ bool Settings::IsAutoStartEnabled() {
     DWORD size = sizeof(value);
     LONG result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,
                                    reinterpret_cast<LPBYTE>(value), &size);
+    value[_countof(value) - 1] = L'\0';
     const LONG closeRes = RegCloseKey(hKey);
     Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\\\Run)");
 
@@ -385,8 +419,10 @@ bool Settings::IsAutoStartEnabled() {
         return false;
     }
 
-    wchar_t exePath[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+    const std::wstring exePath = GetExecutablePath();
+    if (exePath.empty()) {
+        return false;
+    }
 
     // Expand environment variables if needed, then parse the first token.
     std::wstring stored;
@@ -417,7 +453,7 @@ bool Settings::IsAutoStartEnabled() {
         return false;
     }
 
-    return _wcsicmp(first.c_str(), exePath) == 0;
+    return _wcsicmp(first.c_str(), exePath.c_str()) == 0;
 }
 
 bool Settings::SetAutoStartEnabled(bool enable) {
@@ -430,13 +466,15 @@ bool Settings::SetAutoStartEnabled(bool enable) {
 
     bool success = false;
     if (enable) {
-        wchar_t exePath[MAX_PATH] = {};
-        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-        wchar_t quotedPath[2048] = {};
-        StringCchPrintfW(quotedPath, _countof(quotedPath), L"\"%s\"", exePath);
-        DWORD size = static_cast<DWORD>((wcslen(quotedPath) + 1) * sizeof(wchar_t));
+        const std::wstring exePath = GetExecutablePath();
+        if (exePath.empty()) {
+            RegCloseKey(hKey);
+            return false;
+        }
+        const std::wstring quotedPath = L"\"" + exePath + L"\"";
+        const DWORD size = static_cast<DWORD>((quotedPath.size() + 1) * sizeof(wchar_t));
         LONG setRes = RegSetValueExW(hKey, APP_NAME, 0, REG_SZ,
-                                     reinterpret_cast<const BYTE*>(quotedPath),
+                                     reinterpret_cast<const BYTE*>(quotedPath.c_str()),
                                      size);
         success = Utils::CheckWinApiStatus(setRes, L"RegSetValueExW(HKCU\\\\Run\\\\Everon)");
     } else {
