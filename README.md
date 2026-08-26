@@ -18,7 +18,7 @@ A lightweight native Windows tray utility that prevents automatic system sleep w
 - Can optionally keep the display active.
 - Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from **1 second to 24 hours**.
 - Three timer modes: **Indefinitely**, **For duration**, and **Until time**.
-- Quick tray timers for **15 minutes**, **30 minutes**, **1 hour**, and **2 hours**.
+- Quick tray timers for **15 minutes**, **30 minutes**, **1 hour**, and **2 hours**; choosing one enables Everon immediately and replaces the current timer mode.
 - **Until time** clearly indicates when the selected time means tomorrow.
 - Duration timers use a monotonic clock while Everon is running, so changing the Windows clock does not change the active duration; a persisted UTC deadline is used to restore the timer after a restart.
 - Enable or disable Everon from the tray menu.
