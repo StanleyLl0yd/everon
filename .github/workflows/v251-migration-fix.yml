@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   migrate:
-    if: github.event.head_commit.message == 'Run corrected v2.5.1 hardening migration'
+    if: github.event.head_commit.message == 'Retry v2.5.1 hardening migration'
     runs-on: windows-latest
 
     steps:
@@ -284,6 +284,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/Version.h src/Settings.cpp src/HotkeyManager.h src/SettingsDialog.cpp src/app.manifest CMakeLists.txt tests/HotkeyManagerTests.cpp .github/workflows/release.yml CHANGELOG.md CHANGELOG.ru.md
+          git restore .github/workflows/release.yml
+          git add src/Version.h src/Settings.cpp src/HotkeyManager.h src/SettingsDialog.cpp src/app.manifest CMakeLists.txt tests/HotkeyManagerTests.cpp CHANGELOG.md CHANGELOG.ru.md
           git commit -m "Harden Everon for v2.5.1"
           git push origin HEAD:codex/harden-v2.5.1
