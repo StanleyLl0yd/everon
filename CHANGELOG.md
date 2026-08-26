@@ -4,6 +4,17 @@
 
 All notable changes to Everon are documented in this file.
 
+## 2.6.0 — 2026-08-26
+
+### Changed
+
+- Refreshed the native Settings dialog with a wider Segoe UI layout and removed runtime control repositioning.
+- Simplified global hotkey configuration: selecting `None` disables it; any selected hotkey enables it.
+- Disabled the key-press interval controls when synthetic key presses are turned off.
+- A single tray-icon click now opens Settings; keyboard tray activation is also supported.
+- Added a visually muted tray icon for the disabled state.
+- Simplified About to show the version, purpose, author, license, and GitHub repository.
+
 ## 2.5.1 — 2026-08-26
 
 ### Fixed

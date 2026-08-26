@@ -16,7 +16,8 @@ Everon is a small native Windows tray utility that prevents automatic system sle
   - For a selected duration
   - Until the next occurrence of a selected local time
 - Enable or disable Everon from the tray menu
-- Double-click the tray icon to open Settings
+- Single-click the tray icon to open Settings
+- Uses a visually muted tray icon while Everon is disabled
 - Optional configurable global hotkey to enable/disable Everon
 - Optional start with Windows for the current user
 - Optional notifications when Everon is enabled or disabled; timer expiration and relevant errors are also reported through notifications
@@ -33,7 +34,7 @@ Everon is a keep-awake utility. It does not intercept manual lock, sleep, sign-o
 2. Run it.
 3. Use the Everon icon in the Windows system tray:
    - Right-click to enable/disable Everon, open **Settings** or **About**, or exit.
-   - Double-click to open **Settings**.
+   - Single-click to open **Settings**.
 4. Configure display behavior, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
 
 If **Start with Windows** is enabled, keep `Everon.exe` in a stable location. If the executable is moved, enable autostart again so the stored path is updated.
