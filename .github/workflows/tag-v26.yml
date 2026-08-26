@@ -1,0 +1,32 @@
+name: Publish Everon v2.6 tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/tag-v26.yml
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    if: github.event.head_commit.message == 'Publish Everon v2.6 tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Create v2.6 tag on release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify refs/tags/v2.6 >/dev/null; then
+            echo 'Tag v2.6 already exists; refusing to move it.' >&2
+            exit 1
+          fi
+          git tag v2.6 70d73f71e380513d595f917d8363a523782b1070
+          git push origin refs/tags/v2.6
