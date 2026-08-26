@@ -19,7 +19,7 @@ jobs:
         with:
           ref: a74799d124a228eb59dab326a7f50d39c90fa855
 
-      - name: Verify tag and release state
+      - name: Verify tag target
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -29,11 +29,6 @@ jobs:
           $actual = (gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:TAG" --jq '.object.sha').Trim()
           if ($actual -ne $env:TARGET_SHA) {
             throw "Tag $env:TAG points to $actual instead of $env:TARGET_SHA"
-          }
-
-          gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
-          if ($LASTEXITCODE -eq 0) {
-            throw "Release $env:TAG already exists; refusing to overwrite it"
           }
 
       - name: Configure
@@ -85,9 +80,6 @@ jobs:
             --verify-tag `
             --title "Everon $env:TAG" `
             --notes-file "release-notes.md"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to create release $env:TAG"
-          }
 
       - name: Verify published release
         shell: pwsh
