@@ -1,5 +1,6 @@
 #define IDI_EVERON                      101
 #define IDD_SETTINGS                    102
+#define IDD_ABOUT                       103
 #define IDC_STATIC                      -1
 #define IDC_LANGUAGE_LABEL              1000
 #define IDC_PERIOD_EDIT                 1001
@@ -23,6 +24,11 @@
 #define IDC_TIMER_UNTIL                 1019
 #define IDC_TIMER_UNTIL_TIME            1020
 #define IDC_NOTIFY_TOGGLE_CHECK         1021
+#define IDC_ABOUT_VERSION               1022
+#define IDC_ABOUT_TAGLINE               1023
+#define IDC_ABOUT_AUTHOR                1024
+#define IDC_ABOUT_LICENSE               1025
+#define IDC_ABOUT_LINK                  1026
 #define IDM_TOGGLE                      40001
 #define IDM_SETTINGS                    40002
 #define IDM_ABOUT                       40003

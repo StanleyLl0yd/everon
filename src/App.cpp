@@ -1,4 +1,5 @@
 #include "App.h"
+#include "AboutDialog.h"
 #include "TrayIcon.h"
 #include "SettingsDialog.h"
 #include "HotkeyManager.h"
@@ -67,7 +68,7 @@ void App::ArmExpireTimer(const TimerConfig& timer) {
 int App::Run() {
     INITCOMMONCONTROLSEX icc = {};
     icc.dwSize = sizeof(icc);
-    icc.dwICC = ICC_STANDARD_CLASSES | ICC_DATE_CLASSES;
+    icc.dwICC = ICC_STANDARD_CLASSES | ICC_DATE_CLASSES | ICC_LINK_CLASS;
     InitCommonControlsEx(&icc);
 
     // Handle Explorer restart (tray icon may disappear)
@@ -337,17 +338,7 @@ void App::ShowSettings() {
 
 
 void App::ShowAbout() {
-    auto& loc = Localization::Instance();
-    wchar_t message[768];
-    swprintf_s(message, _countof(message),
-              L"%s\n%s\n\nStanley Lloyd\n%s\n\nhttps://github.com/StanleyLl0yd/everon",
-              loc.GetString(StringID::AboutVersion),
-              loc.GetString(StringID::AboutTagline),
-              loc.GetString(StringID::AboutLicense));
-
-    MessageBoxW(m_window, message,
-               loc.GetString(StringID::MenuAbout),
-               MB_OK | MB_ICONINFORMATION);
+    ShowAboutDialog(m_instance, m_window);
 }
 
 void App::OnTaskbarCreated() {

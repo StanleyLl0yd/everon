@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Everon VERSION 2.6.0 LANGUAGES CXX RC)
+project(Everon VERSION 2.6.1 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "Everon is a native Windows application and can only be built on Windows.")
@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(EVERON_SOURCES
     src/main.cpp
     src/App.cpp
+    src/AboutDialog.cpp
     src/HotkeyManager.cpp
     src/Localization.cpp
     src/PowerManager.cpp

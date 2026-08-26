@@ -7,6 +7,13 @@ All notable changes to Everon are documented in this file.
 
 ---
 
+## 2.6.1 — 2026-08-26
+
+### Changed
+
+- Replaced the About message box with a compact native Win32 dialog.
+- Made the GitHub repository URL in About a keyboard-accessible clickable `SysLink` that opens in the default browser.
+
 ## 2.6.0 — 2026-08-26
 
 ### Changed
