@@ -50,4 +50,4 @@ private:
     bool m_isEnabled = true;
 };
 
-} // namespace Everon
+}

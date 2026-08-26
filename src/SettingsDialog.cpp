@@ -7,7 +7,6 @@
 #include "resource.h"
 #include <commctrl.h>
 
-
 namespace Everon {
 
 SettingsDialog::SettingsDialog(HINSTANCE instance)
@@ -16,7 +15,7 @@ SettingsDialog::SettingsDialog(HINSTANCE instance)
 
 bool SettingsDialog::Show(HWND parent, Settings& settings) {
     m_settings = &settings;
-    // Allow live language preview inside the dialog, but revert it if user clicks Cancel.
+    // Revert the live language preview if the dialog is cancelled.
     const Language oldLang = m_settings->GetLanguage();
     const bool oldDirty = m_settings->IsDirty();
 
@@ -311,7 +310,6 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
     }
     hotkey.enabled = hotkey.IsValid();
 
-    // Timer configuration
     TimerConfig timer = m_settings->GetTimerConfig();
     const TimerConfig oldTimer = timer;
 
@@ -340,7 +338,7 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
             GetLocalTime(&timer.untilTime);
         }
 
-        // Keep date fields sane for UI/registry, but only time-of-day is used by the timer logic.
+        // Only the time of day is used; keep the stored date fields valid.
         SYSTEMTIME now = {};
         GetLocalTime(&now);
         timer.untilTime.wYear = now.wYear;
@@ -349,7 +347,7 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         timer.untilTime.wSecond = 0;
         timer.untilTime.wMilliseconds = 0;
     }
-    // If timer configuration changed, drop runtime state so it can be re-initialized when needed.
+    // Reset runtime state when the timer configuration changes.
     const bool timerChanged =
         (timer.mode != oldTimer.mode) ||
         (timer.mode == TimerMode::Duration && timer.durationMinutes != oldTimer.durationMinutes) ||
@@ -360,7 +358,6 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         timer.startTime = {};
         timer.endTimeUtc = 0;
     }
-
 
     m_settings->SetPeriodSec(period);
     m_settings->SetVirtualKey(virtualKey);
@@ -375,7 +372,7 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
                    loc.GetString(StringID::ErrorAutoStart),
                    loc.GetString(StringID::ErrorTitle),
                    MB_OK | MB_ICONWARNING);
-        // Reflect actual state
+
         const bool actual = Settings::IsAutoStartEnabled();
         m_settings->SetAutoStart(actual);
     }
@@ -394,7 +391,6 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
 void SettingsDialog::InitializeTimerControls(HWND dialog) {
     TimerConfig timer = m_settings->GetTimerConfig();
 
-    // Set radio button
     int radioButton = IDC_TIMER_INDEFINITE;
     switch (timer.mode) {
         case TimerMode::Indefinite:
@@ -441,4 +437,4 @@ void SettingsDialog::OnTimerModeChanged(HWND dialog) {
     UpdateTimerControlsState(dialog);
 }
 
-} // namespace Everon
+}

@@ -16,7 +16,7 @@ static inline ULONGLONG NowUtcFileTimeUll() noexcept {
 }
 
 static inline bool LocalToUtcSystemTime(const SYSTEMTIME& local, SYSTEMTIME& utc) noexcept {
-    // nullptr => current time zone
+    // nullptr uses the current system time zone.
     return TzSpecificLocalTimeToSystemTime(nullptr, &local, &utc) != 0;
 }
 
@@ -29,7 +29,7 @@ static inline ULONGLONG UtcSystemTimeToFileTimeUll(const SYSTEMTIME& utc) noexce
 }
 
 static inline bool IsLeapYear(WORD year) noexcept {
-    // Gregorian leap year rules
+
     if ((year % 400) == 0) return true;
     if ((year % 100) == 0) return false;
     return (year % 4) == 0;
@@ -53,7 +53,6 @@ static inline WORD DaysInMonth(WORD year, WORD month) noexcept {
     }
 }
 
-// Adds N days in local calendar time (N must be >= 0).
 static inline void AddDaysLocal(SYSTEMTIME& st, int days) noexcept {
     while (days-- > 0) {
         const WORD dim = DaysInMonth(st.wYear, st.wMonth);
@@ -71,7 +70,6 @@ static inline void AddDaysLocal(SYSTEMTIME& st, int days) noexcept {
     }
 }
 
-// Adds minutes in local calendar time (minutes must be >= 0).
 static inline void AddMinutesLocal(SYSTEMTIME& st, int minutes) noexcept {
     int total = static_cast<int>(st.wHour) * 60 + static_cast<int>(st.wMinute) + minutes;
     while (total >= 24 * 60) {
@@ -82,7 +80,6 @@ static inline void AddMinutesLocal(SYSTEMTIME& st, int minutes) noexcept {
     st.wMinute = static_cast<WORD>(total % 60);
 }
 
-// Computes next occurrence of untilTime (time-of-day) relative to now, returns UTC FILETIME (QWORD).
 static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
     SYSTEMTIME nowLocal = {};
     GetLocalTime(&nowLocal);
@@ -93,7 +90,6 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
     targetLocal.wSecond = 0;
     targetLocal.wMilliseconds = 0;
 
-    // Decide whether the next occurrence is today or tomorrow using pure time-of-day comparison.
     bool nextDay = false;
     if (targetLocal.wHour < nowLocal.wHour) {
         nextDay = true;
@@ -101,7 +97,7 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
         if (targetLocal.wMinute < nowLocal.wMinute) {
             nextDay = true;
         } else if (targetLocal.wMinute == nowLocal.wMinute) {
-            // If we're already past the exact minute (seconds/ms), schedule for next day.
+
             if (nowLocal.wSecond > 0 || nowLocal.wMilliseconds > 0) {
                 nextDay = true;
             }
@@ -112,21 +108,21 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
         AddDaysLocal(targetLocal, 1);
     }
 
-    // Convert local target to UTC. Around DST transitions some local times may be invalid
-    // (e.g., spring-forward gap). In that case, move forward to the next valid minute.
+    // DST transitions can make local times invalid; probe forward to the next valid minute.
+
     SYSTEMTIME targetUtc = {};
     SYSTEMTIME probeLocal = targetLocal;
 
     bool ok = LocalToUtcSystemTime(probeLocal, targetUtc);
     if (!ok) {
-        for (int i = 0; i < 180 && !ok; ++i) { // up to 3 hours of probing (more than enough for DST gaps)
+        for (int i = 0; i < 180 && !ok; ++i) { // Probe at most three hours.
             AddMinutesLocal(probeLocal, 1);
             ok = LocalToUtcSystemTime(probeLocal, targetUtc);
         }
     }
 
     if (!ok) {
-        // Last resort: treat local as UTC (stable, but may be offset by timezone).
+        // Fall back to treating local time as UTC if conversion still fails.
         targetUtc = targetLocal;
     }
 
@@ -179,7 +175,7 @@ bool TimerConfig::IsValid() const noexcept {
 }
 
 void TimerConfig::ResetStartTime() noexcept {
-    // Reset "runtime state" for the current mode.
+
     if (mode == TimerMode::Duration) {
         GetLocalTime(&startTime);
         const ULONGLONG nowUtc = NowUtcFileTimeUll();
@@ -229,7 +225,7 @@ DWORD TimerConfig::GetRemainingMilliseconds() const noexcept {
         return 0;
     }
 
-    // Round up so we never report "0 ms" before the actual deadline.
+    // Round up so zero is never reported before the actual deadline.
     const ULONGLONG diff100ns = targetUtc - nowUtc;
     const ULONGLONG milliseconds = (diff100ns + 10000ULL - 1ULL) / 10000ULL;
     if (milliseconds > 0xFFFFFFFFULL) {
@@ -238,4 +234,4 @@ DWORD TimerConfig::GetRemainingMilliseconds() const noexcept {
     return static_cast<DWORD>(milliseconds);
 }
 
-} // namespace Everon
+}

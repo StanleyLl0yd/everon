@@ -31,4 +31,4 @@ private:
     Settings* m_settings = nullptr;
 };
 
-} // namespace Everon
+}

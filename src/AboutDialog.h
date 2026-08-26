@@ -6,4 +6,4 @@ namespace Everon {
 
 void ShowAboutDialog(HINSTANCE instance, HWND parent);
 
-} // namespace Everon
+}

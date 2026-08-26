@@ -8,19 +8,16 @@
 
 namespace Everon {
 
-// Forward declaration must match the underlying type used in Localization.h
 enum class Language : unsigned char;
 
-// Application settings stored in registry
 class Settings {
 public:
     static constexpr DWORD MIN_PERIOD_SEC = 1;
-    static constexpr DWORD MAX_PERIOD_SEC = 86400; // 24 hours
+    static constexpr DWORD MAX_PERIOD_SEC = 24 * 60 * 60;
     static constexpr DWORD DEFAULT_PERIOD_SEC = 59;
 
     Settings();
 
-    // Getters
     DWORD GetPeriodSec() const noexcept { return m_periodSec; }
     WORD GetVirtualKey() const noexcept { return m_vkKey; }
     bool GetKeepDisplayOn() const noexcept { return m_keepDisplayOn; }
@@ -31,7 +28,6 @@ public:
     HotkeyConfig GetHotkeyConfig() const noexcept;
     TimerConfig GetTimerConfig() const noexcept;
 
-    // Setters
     void SetPeriodSec(DWORD value) noexcept;
     void SetVirtualKey(WORD value) noexcept;
     void SetKeepDisplayOn(bool value) noexcept;
@@ -42,17 +38,14 @@ public:
     void SetHotkeyConfig(const HotkeyConfig& value) noexcept;
     void SetTimerConfig(const TimerConfig& value) noexcept;
 
-    // Registry operations
     bool LoadFromRegistry();
     bool SaveToRegistry();
     bool IsDirty() const noexcept { return m_dirty; }
     void SetDirty(bool value) noexcept { m_dirty = value; }
 
-    // Validation
     bool IsValidPeriod(DWORD value) const noexcept;
     bool IsValidVirtualKey(WORD vk) const noexcept;
 
-    // Auto-start registry management
     static bool IsAutoStartEnabled();
     static bool SetAutoStartEnabled(bool enable);
 
@@ -72,4 +65,4 @@ private:
     static constexpr const wchar_t* APP_NAME = L"Everon";
 };
 
-} // namespace Everon
+}

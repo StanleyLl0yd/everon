@@ -77,7 +77,6 @@ void CenterWindowOnMonitor(HWND window, HWND referenceWindow) {
     const int width = rect.right - rect.left;
     const int height = rect.bottom - rect.top;
 
-    // Get monitor containing the reference window (or nearest to dialog)
     HMONITOR monitor = MonitorFromWindow(
         referenceWindow ? referenceWindow : window,
         MONITOR_DEFAULTTONEAREST
@@ -90,13 +89,11 @@ void CenterWindowOnMonitor(HWND window, HWND referenceWindow) {
         return;
     }
 
-    // Use work area (excludes taskbar)
     const RECT& workArea = monitorInfo.rcWork;
 
     int x = workArea.left + ((workArea.right - workArea.left) - width) / 2;
     int y = workArea.top + ((workArea.bottom - workArea.top) - height) / 2;
 
-    // Clamp to work area
     x = max(workArea.left, min(x, workArea.right - width));
     y = max(workArea.top, min(y, workArea.bottom - height));
 
@@ -109,7 +106,6 @@ std::wstring GetKeyName(UINT virtualKey) {
         return L"Off";
     }
 
-    // Special keys
     switch (virtualKey) {
         case VK_BACK:       return L"Backspace";
         case VK_TAB:        return L"Tab";
@@ -131,43 +127,37 @@ std::wstring GetKeyName(UINT virtualKey) {
         case VK_DELETE:     return L"Delete";
     }
 
-    // F1-F24
     if (virtualKey >= VK_F1 && virtualKey <= VK_F24) {
         wchar_t buffer[8];
         swprintf_s(buffer, L"F%u", virtualKey - VK_F1 + 1);
         return buffer;
     }
 
-    // 0-9, A-Z
     if ((virtualKey >= '0' && virtualKey <= '9') || (virtualKey >= 'A' && virtualKey <= 'Z')) {
         return std::wstring(1, static_cast<wchar_t>(virtualKey));
     }
 
-    // Numpad
     if (virtualKey >= VK_NUMPAD0 && virtualKey <= VK_NUMPAD9) {
         wchar_t buffer[16];
         swprintf_s(buffer, L"Num%u", virtualKey - VK_NUMPAD0);
         return buffer;
     }
 
-    // Try to get key name from system
     UINT scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC);
     wchar_t buffer[64] = {};
     if (GetKeyNameTextW(scanCode << 16, buffer, 64) > 0) {
         return buffer;
     }
 
-    // Fallback
     swprintf_s(buffer, L"Key%02X", virtualKey & 0xFFU);
     return buffer;
 }
 
-// SingleInstanceGuard implementation
 SingleInstanceGuard::SingleInstanceGuard(const wchar_t* mutexName) {
     m_mutex = CreateMutexW(nullptr, TRUE, mutexName);
 
     if (!m_mutex) {
-        // Mutex creation failed, allow app to run anyway
+        // Fail open if the single-instance mutex cannot be created.
         m_isFirst = true;
         return;
     }
@@ -186,5 +176,5 @@ SingleInstanceGuard::~SingleInstanceGuard() {
     }
 }
 
-} // namespace Utils
-} // namespace Everon
+}
+}

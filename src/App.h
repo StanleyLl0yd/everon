@@ -55,4 +55,4 @@ private:
     static constexpr UINT_PTR TIMER_ID_EXPIRE = 2;
 };
 
-} // namespace Everon
+}

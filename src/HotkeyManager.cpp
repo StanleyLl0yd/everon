@@ -12,17 +12,16 @@ HotkeyManager::~HotkeyManager() {
 }
 
 bool HotkeyManager::RegisterHotkey(const HotkeyConfig& config, HotkeyCallback callback) {
-    // Unregister previous hotkey
+
     UnregisterHotkey();
 
     if (!config.enabled || !config.IsValid()) {
-        return true; // Not an error, just disabled
+        return true;
     }
 
     m_config = config;
     m_callback = std::move(callback);
 
-    // Register global hotkey
     UINT mods = m_config.modifiers;
 #ifdef MOD_NOREPEAT
     mods |= MOD_NOREPEAT;
@@ -89,9 +88,6 @@ HotkeyConfig HotkeyManager::StringToHotkey(const wchar_t* str) {
         return config;
     }
 
-    // Format: "enabled,modifiers,virtualKey"
-    // Example: "1,3,69" for Ctrl+Shift+E
-
     int enabled = 0;
     unsigned int modifiers = 0, vk = 0;
     if (swscanf_s(str, L"%d,%u,%u", &enabled, &modifiers, &vk) == 3) {
@@ -112,4 +108,4 @@ std::wstring HotkeyManager::HotkeyToRegistryString(const HotkeyConfig& config) {
     return buffer;
 }
 
-} // namespace Everon
+}

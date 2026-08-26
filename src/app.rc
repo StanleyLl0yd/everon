@@ -55,12 +55,6 @@ BEGIN
     DEFPUSHBUTTON   "OK", IDOK, 100, 108, 50, 16
 END
 
-//------------------------------------------------------------------------------
-// Version information (fills "Details" tab in file properties)
-// Synchronized with Version.h and the runtime localization table.
-// License: PolyForm Noncommercial License 1.0.0.
-//------------------------------------------------------------------------------
-
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION     VER_FILEVERSION
  PRODUCTVERSION  VER_PRODUCTVERSION
@@ -76,7 +70,7 @@ VS_VERSION_INFO VERSIONINFO
 BEGIN
   BLOCK "StringFileInfo"
   BEGIN
-    // English (United States) - Unicode
+
     BLOCK "040904B0"
     BEGIN
       VALUE "CompanyName",      "Stanley Lloyd\0"
@@ -90,7 +84,6 @@ BEGIN
       VALUE "Comments",         "Tray utility that keeps the PC awake; optional F15/F16/F17 key press; timer support. PolyForm Noncommercial 1.0.0.\0"
     END
 
-    // Russian (Russia) - Unicode
     BLOCK "041904B0"
     BEGIN
       VALUE "CompanyName",      "Stanley Lloyd\0"
@@ -104,7 +97,6 @@ BEGIN
       VALUE "Comments",         "Утилита в трее, поддерживающая компьютер активным; опционально F15/F16/F17; таймер. PolyForm Noncommercial 1.0.0.\0"
     END
 
-    // French (France) - Unicode
     BLOCK "040C04B0"
     BEGIN
       VALUE "CompanyName",      "Stanley Lloyd\0"
@@ -118,7 +110,6 @@ BEGIN
       VALUE "Comments",         "Utilitaire de barre d'état qui maintient le PC éveillé; F15/F16/F17 optionnel; minuteur. PolyForm Noncommercial 1.0.0.\0"
     END
 
-    // German (Germany) - Unicode
     BLOCK "040704B0"
     BEGIN
       VALUE "CompanyName",      "Stanley Lloyd\0"
@@ -132,7 +123,6 @@ BEGIN
       VALUE "Comments",         "Tray-Tool, das den PC wach hält; optional F15/F16/F17; Timer. PolyForm Noncommercial 1.0.0.\0"
     END
 
-    // Italian (Italy) - Unicode
     BLOCK "041004B0"
     BEGIN
       VALUE "CompanyName",      "Stanley Lloyd\0"
@@ -146,7 +136,6 @@ BEGIN
       VALUE "Comments",         "Utilità tray che mantiene attivo il PC; F15/F16/F17 opzionale; timer. PolyForm Noncommercial 1.0.0.\0"
     END
 
-    // Spanish (Spain, Modern Sort) - Unicode
     BLOCK "0C0A04B0"
     BEGIN
       VALUE "CompanyName",      "Stanley Lloyd\0"

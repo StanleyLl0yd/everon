@@ -6,11 +6,10 @@
 
 namespace Everon {
 
-// Hotkey configuration
 struct HotkeyConfig {
     bool enabled = false;
-    UINT modifiers = 0;  // MOD_CONTROL, MOD_SHIFT, MOD_ALT, MOD_WIN
-    UINT virtualKey = 0; // VK_*
+    UINT modifiers = 0;
+    UINT virtualKey = 0;
 
     bool IsValid() const {
         constexpr UINT kAllowedModifiers = MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN;
@@ -29,7 +28,6 @@ struct HotkeyConfig {
     }
 };
 
-// Hotkey manager
 class HotkeyManager {
 public:
     using HotkeyCallback = std::function<void()>;
@@ -37,27 +35,20 @@ public:
     explicit HotkeyManager(HWND window);
     ~HotkeyManager();
 
-    // Register/unregister hotkey
     bool RegisterHotkey(const HotkeyConfig& config, HotkeyCallback callback);
     void UnregisterHotkey();
 
-    // Check if hotkey is registered
     bool IsRegistered() const { return m_isRegistered; }
 
-    // Get current configuration
     const HotkeyConfig& GetConfig() const { return m_config; }
 
-    // Handle WM_HOTKEY message
     bool HandleHotkey(WPARAM wParam);
 
-    // Convert hotkey to string for display
     static std::wstring HotkeyToString(const HotkeyConfig& config);
 
-    // Parse hotkey from string (for registry)
     static HotkeyConfig StringToHotkey(const wchar_t* str);
     static std::wstring HotkeyToRegistryString(const HotkeyConfig& config);
 
-    // Hotkey ID
     static constexpr int HOTKEY_ID_TOGGLE = 1;
 
 private:
@@ -67,4 +58,4 @@ private:
     HotkeyCallback m_callback;
 };
 
-} // namespace Everon
+}
