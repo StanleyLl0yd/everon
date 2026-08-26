@@ -8,14 +8,14 @@ using namespace Everon;
 
 int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE,
                     _In_ PWSTR, _In_ int) {
-    // Ensure a stable AppUserModelID (Windows 7+) for consistent naming/grouping.
-    // This also reduces chances of odd display names in Task Manager/notification UI.
+    // Use a stable AppUserModelID for consistent Windows naming and grouping.
+
     SetCurrentProcessExplicitAppUserModelID(L"Everon");
 
     Utils::SingleInstanceGuard guard(L"Local\\Everon_SingleInstance_Mutex");
 
     if (!guard.IsFirstInstance()) {
-        // Ask the running instance to open settings.
+
         for (int i = 0; i < 20; ++i) {
             HWND runningWindow = FindWindowW(App::WINDOW_CLASS_NAME, nullptr);
             if (runningWindow) {

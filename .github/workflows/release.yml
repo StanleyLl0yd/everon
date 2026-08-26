@@ -1,6 +1,5 @@
 name: Release
 
-# Builds, tests, and publishes the version declared in src/Version.h.
 on:
   push:
     tags:

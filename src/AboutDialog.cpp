@@ -60,7 +60,7 @@ INT_PTR CALLBACK AboutDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARA
     return FALSE;
 }
 
-} // namespace
+}
 
 void ShowAboutDialog(HINSTANCE instance, HWND parent) {
     const INT_PTR result = DialogBoxParamW(instance,
@@ -83,4 +83,4 @@ void ShowAboutDialog(HINSTANCE instance, HWND parent) {
     }
 }
 
-} // namespace Everon
+}

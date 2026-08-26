@@ -6,14 +6,13 @@
 #include "resource.h"
 #include <strsafe.h>
 
-// Some SDKs may not define these flags, but Windows 7+ supports them.
+// Keep compatibility with SDKs that omit these Windows 7+ flags.
 #ifndef NIF_SHOWTIP
 #define NIF_SHOWTIP 0x00000080
 #endif
 #ifndef NIF_GUID
 #define NIF_GUID 0x00000020
 #endif
-
 
 namespace {
 
@@ -88,10 +87,9 @@ HICON CreateMutedIcon(HICON source, int width, int height) {
     return result;
 }
 
-} // namespace
+}
 
 namespace Everon {
-
 
 TrayIcon::TrayIcon(HWND parentWindow, HINSTANCE instance)
     : m_parentWindow(parentWindow)
@@ -104,16 +102,14 @@ TrayIcon::~TrayIcon() {
 
 bool TrayIcon::Add() {
     m_notifyData = {};
-    // Windows 7+ supports the modern NOTIFYICONDATA size.
+
     m_notifyData.cbSize = sizeof(NOTIFYICONDATAW);
     m_notifyData.hWnd = m_parentWindow;
     m_notifyData.uID = 1;
-    // Opt-in to standard tooltip behavior for NOTIFYICON_VERSION_4.
+
     m_notifyData.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP | NIF_GUID;
     m_notifyData.uCallbackMessage = WM_TRAYICON;
 
-    // Stable identity is recommended on Windows 7+.
-    // This also helps the shell keep icon state consistent across restarts.
     static const GUID kTrayGuid =
         {0x8b5e6f7a, 0x6d8a, 0x4a0c, {0x9d, 0x2e, 0x4f, 0x7d, 0x7a, 0x51, 0x1c, 0x10}};
     m_notifyData.guidItem = kTrayGuid;
@@ -141,9 +137,8 @@ bool TrayIcon::Add() {
         return false;
     }
 
-    // Try modern behavior; if it fails, fall back to legacy.
     m_notifyData.uVersion = NOTIFYICON_VERSION_4;
-    // For NIM_SETVERSION, uFlags are ignored but keeping it clean avoids edge cases.
+
     const UINT savedFlags = m_notifyData.uFlags;
     m_notifyData.uFlags = 0;
     if (!Utils::ShellNotifyIconChecked(NIM_SETVERSION, &m_notifyData, L"set tray icon v4")) {
@@ -151,13 +146,12 @@ bool TrayIcon::Add() {
         Utils::ShellNotifyIconChecked(NIM_SETVERSION, &m_notifyData, L"set tray icon legacy version");
     }
     m_notifyData.uFlags = savedFlags;
-    // Re-apply tooltip after setting version (some shells ignore the tip set during NIM_ADD).
-    // IMPORTANT: When using NIF_GUID identity, include NIF_GUID for NIM_MODIFY; otherwise the modify
-    // may silently target nothing and the shell keeps the original (often non-informative) tooltip.
+    // Reapply the tooltip because some shells ignore the value supplied with NIM_ADD.
+    // NIM_MODIFY must include NIF_GUID when the icon was registered by GUID.
+
     m_notifyData.uFlags = NIF_TIP | NIF_SHOWTIP | NIF_GUID;
     Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"apply tray tooltip after add");
     m_notifyData.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP | NIF_GUID;
-
 
     return true;
 }
@@ -205,11 +199,10 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
 
     if (settings.IsEnabled()) {
         const bool isRu = (loc.GetLanguage() == Language::Russian);
-        const wchar_t secUnit = isRu ? L'\x0441' : L's'; // 'с' or 's'
-        const wchar_t minUnit = isRu ? L'\x043C' : L'm'; // 'м' or 'm'
-        const wchar_t hourUnit = isRu ? L'\x0447' : L'h'; // 'ч' or 'h'
+        const wchar_t secUnit = isRu ? L'\x0441' : L's';
+        const wchar_t minUnit = isRu ? L'\x043C' : L'm';
+        const wchar_t hourUnit = isRu ? L'\x0447' : L'h';
 
-        // Optional keypress info (omit if no key is configured)
         const WORD vk = settings.GetVirtualKey();
         const DWORD period = settings.GetPeriodSec();
         if (vk != 0 && period > 0) {
@@ -220,12 +213,10 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
             AppendBullet(part);
         }
 
-        // Keep display on (optional)
         if (settings.GetKeepDisplayOn()) {
             AppendBullet(loc.GetString(StringID::SettingsKeepDisplay));
         }
 
-        // Timer info (optional)
         TimerConfig timer = settings.GetTimerConfig();
         if (timer.mode == TimerMode::Duration) {
             DWORD remaining = timer.GetRemainingSeconds();
@@ -257,7 +248,7 @@ void TrayIcon::UpdateTooltip(const Settings& settings) {
     }
 
     StringCchCopyW(m_notifyData.szTip, _countof(m_notifyData.szTip), tooltip);
-    // Keep NIF_GUID for modify when icon was registered by GUID.
+
     m_notifyData.uFlags = NIF_TIP | NIF_SHOWTIP | NIF_GUID;
     Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"update tray tooltip");
 }
@@ -348,7 +339,6 @@ void TrayIcon::ShowNotification(const wchar_t* title, const wchar_t* message, DW
         return;
     }
 
-    // Keep NIF_GUID for modify when icon was registered by GUID.
     m_notifyData.uFlags = NIF_INFO | NIF_GUID;
     StringCchCopyW(m_notifyData.szInfoTitle, _countof(m_notifyData.szInfoTitle), title);
     StringCchCopyW(m_notifyData.szInfo, _countof(m_notifyData.szInfo), message);
@@ -356,4 +346,4 @@ void TrayIcon::ShowNotification(const wchar_t* title, const wchar_t* message, DW
     Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"show tray notification");
 }
 
-} // namespace Everon
+}

@@ -48,11 +48,11 @@ std::wstring GetExecutablePath() {
     return {};
 }
 
-} // namespace
+}
 
 Settings::Settings() {
     m_autoStart = IsAutoStartEnabled();
-    // Default UntilTime to current local time for a nicer UI default.
+
     GetLocalTime(&m_timerConfig.untilTime);
 }
 
@@ -140,7 +140,7 @@ bool Settings::LoadFromRegistry() {
         if (openRes != ERROR_FILE_NOT_FOUND) {
             Utils::CheckWinApiStatus(openRes, L"RegOpenKeyExW(HKCU\\\\Software\\\\Everon)");
         }
-        // First run (or settings cleared). Keep defaults but ensure language/autostart are initialized.
+
         SetLanguage(Localization::DetectSystemLanguage());
         m_autoStart = IsAutoStartEnabled();
         m_dirty = false;
@@ -230,14 +230,11 @@ bool Settings::LoadFromRegistry() {
         SetLanguage(Localization::DetectSystemLanguage());
     }
 
-
-    // Hotkey
     wchar_t hotkeyBuffer[128] = {};
     if (ReadString(L"Hotkey", hotkeyBuffer, sizeof(hotkeyBuffer))) {
         m_hotkeyConfig = HotkeyManager::StringToHotkey(hotkeyBuffer);
     }
 
-    // Timer
     TimerConfig timer = m_timerConfig;
 
     DWORD tempMode = 0;
@@ -271,12 +268,12 @@ bool Settings::LoadFromRegistry() {
         Utils::CheckWinApiStatus(qRes, L"RegQueryValueExW(TimerStartTime)");
     }
 
-    // Timer runtime end moment (UTC) - preferred over legacy startTime for DST robustness
+    // Prefer the persisted UTC deadline to legacy local start time.
     ULONGLONG tempQword = 0;
     if (ReadQword(L"TimerEndUtc", tempQword)) {
         timer.endTimeUtc = tempQword;
     } else if (timer.mode == TimerMode::Duration && timer.startTime.wYear != 0) {
-        // Backward compatibility: compute endTimeUtc from legacy startTime
+        // Recover deadlines saved by older versions.
         SYSTEMTIME startUtc = {};
         if (!TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {
             startUtc = timer.startTime;
@@ -290,7 +287,6 @@ bool Settings::LoadFromRegistry() {
         }
     }
 
-    // Sanity check
     if (!timer.IsValid()) {
         timer = TimerConfig{};
         GetLocalTime(&timer.untilTime);
@@ -377,7 +373,7 @@ bool Settings::SaveToRegistry() {
         success = false;
     }
 
-    // Store end moment only for the currently enabled run; avoid stale values when disabled.
+    // Persist a deadline only for an active timed run.
     ULONGLONG endUtcToSave = 0;
     if (m_enabled && timer.mode != TimerMode::Indefinite) {
         endUtcToSave = timer.endTimeUtc;
@@ -424,7 +420,6 @@ bool Settings::IsAutoStartEnabled() {
         return false;
     }
 
-    // Expand environment variables if needed, then parse the first token.
     std::wstring stored;
     if (type == REG_EXPAND_SZ) {
         wchar_t expanded[4096] = {};
@@ -492,4 +487,4 @@ bool Settings::SetAutoStartEnabled(bool enable) {
     return success;
 }
 
-} // namespace Everon
+}

@@ -4,7 +4,6 @@
 
 namespace Everon {
 
-// Supported languages
 enum class Language : unsigned char {
     English,
     Russian,
@@ -15,16 +14,14 @@ enum class Language : unsigned char {
     Count
 };
 
-// String IDs for localization
 enum class StringID : unsigned short {
-    // Menu items
+
     MenuEnable,
     MenuDisable,
     MenuSettings,
     MenuAbout,
     MenuExit,
 
-    // Settings dialog
     SettingsTitle,
     SettingsGeneral,
     SettingsHotkeys,
@@ -46,13 +43,11 @@ enum class StringID : unsigned short {
     SettingsTimerMinutes,
     SettingsTimerUntil,
 
-    // Buttons
     ButtonOK,
     ButtonCancel,
     ButtonApply,
     ButtonTest,
 
-    // About dialog
     AboutTitle,
     AboutVersion,
     AboutTagline,
@@ -64,7 +59,6 @@ enum class StringID : unsigned short {
     AboutInstructions,
     AboutLicense,
 
-    // Validation messages
     ErrorInvalidPeriod,
     ErrorInvalidPeriodTitle,
     ErrorInvalidTimerTitle,
@@ -73,18 +67,15 @@ enum class StringID : unsigned short {
     ErrorAutoStart,
     ErrorSaveSettings,
 
-    // Tooltips
     TooltipDisabled,
     TooltipEnabled,
 
-    // Notifications
     NotifyEnabled,
     NotifyDisabled,
     NotifyTimerExpired,
     NotifyHotkeyRegistered,
     NotifyHotkeyFailed,
 
-    // Errors
     ErrorTrayIcon,
     ErrorAlreadyRunning,
     ErrorTitle,
@@ -92,7 +83,6 @@ enum class StringID : unsigned short {
     Count
 };
 
-// Localization manager (zero-alloc, static tables)
 class Localization {
 public:
     static Localization& Instance();
@@ -113,4 +103,4 @@ private:
     Language m_currentLanguage = Language::English;
 };
 
-} // namespace Everon
+}

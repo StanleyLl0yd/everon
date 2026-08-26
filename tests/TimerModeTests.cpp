@@ -33,7 +33,7 @@ SYSTEMTIME TwoMinutesFromNowLocal() {
     return futureLocal;
 }
 
-} // namespace
+}
 
 int main() {
     using namespace Everon;

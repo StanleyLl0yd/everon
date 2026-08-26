@@ -27,7 +27,6 @@ void PowerManager::PreventSleep(bool keepDisplayOn) {
     m_keepDisplayOn = keepDisplayOn;
 }
 
-
 void PowerManager::AllowSleep() {
     if (!m_isActive) {
         return;
@@ -47,12 +46,10 @@ void PowerManager::SendKeyPress(WORD virtualKey) {
 
     INPUT inputs[2] = {};
 
-    // Key down
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = virtualKey;
     inputs[0].ki.dwFlags = 0;
 
-    // Key up
     inputs[1].type = INPUT_KEYBOARD;
     inputs[1].ki.wVk = virtualKey;
     inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
@@ -63,4 +60,4 @@ void PowerManager::SendKeyPress(WORD virtualKey) {
     }
 }
 
-} // namespace Everon
+}

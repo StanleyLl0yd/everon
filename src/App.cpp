@@ -53,12 +53,12 @@ void App::ArmExpireTimer(const TimerConfig& timer) {
     }
 
     static constexpr DWORD kWinTimerMaxMs = 0x7FFFFFFFUL;
-    static constexpr UINT kLongRearmChunkMs = 10U * 60U * 1000U; // 10 minutes
+    static constexpr UINT kLongRearmChunkMs = 10U * 60U * 1000U;
 
     UINT intervalMs = static_cast<UINT>(remainingMs);
     if (remainingMs > kWinTimerMaxMs) {
-        // Defensive path for corrupted/legacy settings far in the future.
-        // Re-arm in chunks instead of passing an out-of-range value to SetTimer.
+        // Chunk long delays to stay within SetTimer's range.
+
         intervalMs = kLongRearmChunkMs;
     }
 
@@ -71,7 +71,6 @@ int App::Run() {
     icc.dwICC = ICC_STANDARD_CLASSES | ICC_DATE_CLASSES | ICC_LINK_CLASS;
     InitCommonControlsEx(&icc);
 
-    // Handle Explorer restart (tray icon may disappear)
     m_taskbarCreatedMessage = RegisterWindowMessageW(L"TaskbarCreated");
 
     WNDCLASSW wc = {};
@@ -175,8 +174,8 @@ void App::OnCreate() {
                    loc.GetString(StringID::ErrorTitle),
                    MB_OK | MB_ICONWARNING);
 
-        // If we can't create the tray icon, the app becomes effectively invisible and
-        // users lose the ability to disable/exit it. Exit to avoid a "headless" run.
+        // Exit if the tray icon cannot be created; otherwise the app would be inaccessible.
+
         DestroyWindow(m_window);
         return;
     }
@@ -208,7 +207,7 @@ void App::OnTimer(UINT_PTR timerId) {
     }
 
     if (timerId == TIMER_ID_KEYPRESS) {
-        // Periodic key press (optional)
+
         const WORD vk = m_settings.GetVirtualKey();
         if (vk != 0) {
             m_powerManager.SendKeyPress(vk);
@@ -217,12 +216,12 @@ void App::OnTimer(UINT_PTR timerId) {
     }
 
     if (timerId == TIMER_ID_EXPIRE) {
-        // One-shot: stop this timer immediately
+
         KillTimer(m_window, TIMER_ID_EXPIRE);
 
         const TimerConfig timer = m_settings.GetTimerConfig();
         if (timer.IsExpired()) {
-            // Timer expired - disable
+
             m_settings.SetEnabled(false);
 
             TimerConfig cleared = timer;
@@ -240,13 +239,12 @@ void App::OnTimer(UINT_PTR timerId) {
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                         loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);
         } else {
-            // Re-arm to handle clock adjustments and boundary races robustly.
+            // Re-arm after clock changes or timer-boundary races.
             ArmExpireTimer(timer);
         }
         return;
     }
 }
-
 
 void App::OnTrayIcon(LPARAM lParam) {
     if (m_trayIcon) {
@@ -256,7 +254,7 @@ void App::OnTrayIcon(LPARAM lParam) {
 
 void App::OnHotkey(WPARAM wParam) {
     if (m_hotkeyManager && m_hotkeyManager->HandleHotkey(wParam)) {
-        // Hotkey handled
+
     }
 }
 
@@ -265,7 +263,7 @@ void App::ToggleEnabled() {
     m_settings.SetEnabled(newEnabled);
 
     if (newEnabled) {
-        // Initialize timer runtime state on enable
+
         TimerConfig timer = m_settings.GetTimerConfig();
         if (timer.mode != TimerMode::Indefinite) {
             timer.ResetStartTime();
@@ -281,7 +279,6 @@ void App::ToggleEnabled() {
         StopTimer();
         m_powerManager.AllowSleep();
 
-        // Clear runtime state to avoid stale expirations
         TimerConfig timer = m_settings.GetTimerConfig();
         timer.startTime = {};
         timer.endTimeUtc = 0;
@@ -304,7 +301,6 @@ void App::ToggleEnabled() {
     }
 }
 
-
 void App::ShowSettings() {
     if (!m_settingsDialog || m_isSettingsDialogOpen) {
         return;
@@ -315,7 +311,7 @@ void App::ShowSettings() {
     m_isSettingsDialogOpen = false;
 
     if (accepted) {
-        // If timer configuration was changed (dialog clears runtime state), re-initialize it if enabled.
+
         if (m_settings.IsEnabled()) {
             TimerConfig timer = m_settings.GetTimerConfig();
             if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
@@ -335,7 +331,6 @@ void App::ShowSettings() {
         RegisterHotkey();
     }
 }
-
 
 void App::ShowAbout() {
     ShowAboutDialog(m_instance, m_window);
@@ -359,7 +354,7 @@ void App::Exit() {
 }
 
 void App::StartTimer() {
-    // Stop existing timers
+
     KillTimer(m_window, TIMER_ID_KEYPRESS);
     KillTimer(m_window, TIMER_ID_EXPIRE);
 
@@ -367,7 +362,6 @@ void App::StartTimer() {
         return;
     }
 
-    // Keypress timer (only if a virtual key is configured)
     const WORD vk = m_settings.GetVirtualKey();
     const UINT periodSec = m_settings.GetPeriodSec();
     if (vk != 0 && periodSec > 0) {
@@ -375,17 +369,16 @@ void App::StartTimer() {
         Utils::SetTimerChecked(m_window, TIMER_ID_KEYPRESS, intervalMs);
     }
 
-    // Expiration timer (one-shot)
     TimerConfig timer = m_settings.GetTimerConfig();
     if (timer.mode != TimerMode::Indefinite) {
-        // For UntilTime we must pin a concrete end moment, otherwise it would roll to "tomorrow"
-        // at the exact moment the timer fires.
+        // Pin UntilTime to a concrete deadline so it cannot roll into the next day when it fires.
+
         if (timer.mode == TimerMode::UntilTime && timer.endTimeUtc == 0) {
             timer.ResetStartTime();
             m_settings.SetTimerConfig(timer);
             SaveSettings();
         } else if (timer.mode == TimerMode::Duration && timer.endTimeUtc == 0 && timer.startTime.wYear == 0) {
-            // Defensive: enabled duration without runtime state
+            // Recover missing runtime state.
             timer.ResetStartTime();
             m_settings.SetTimerConfig(timer);
             SaveSettings();
@@ -395,12 +388,10 @@ void App::StartTimer() {
     }
 }
 
-
 void App::StopTimer() {
     KillTimer(m_window, TIMER_ID_KEYPRESS);
     KillTimer(m_window, TIMER_ID_EXPIRE);
 }
-
 
 void App::UpdatePowerState() {
     if (m_settings.IsEnabled()) {
@@ -409,7 +400,6 @@ void App::UpdatePowerState() {
         m_powerManager.AllowSleep();
     }
 }
-
 
 void App::RegisterHotkey() {
     if (!m_hotkeyManager) {
@@ -426,5 +416,4 @@ void App::RegisterHotkey() {
     }
 }
 
-
-} // namespace Everon
+}
