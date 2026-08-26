@@ -152,19 +152,17 @@ jobs:
           )
           timer_h.write_text(timer_text, encoding="utf-8")
 
-          for path in [Path(".gitignore"), Path(".github/workflows/release.yml")]:
-              lines = path.read_text(encoding="utf-8").splitlines()
-              lines = [line.rstrip() for line in lines if not line.lstrip().startswith("#")]
-              text = "\n".join(lines) + "\n"
-              text = re.sub(r"\n{3,}", "\n\n", text)
-              path.write_text(text, encoding="utf-8")
+          path = Path(".gitignore")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          lines = [line.rstrip() for line in lines if not line.lstrip().startswith("#")]
+          text = "\n".join(lines) + "\n"
+          text = re.sub(r"\n{3,}", "\n\n", text)
+          path.write_text(text, encoding="utf-8")
 
           manifest = Path("src/app.manifest")
           manifest_text = manifest.read_text(encoding="utf-8")
           manifest_text = re.sub(r"^\s*<!--.*?-->\s*\n", "", manifest_text, flags=re.M)
           manifest.write_text(manifest_text, encoding="utf-8")
-
-          Path(".github/workflows/comment-audit.yml").unlink()
       - name: Verify comments
         shell: python
         run: |
@@ -207,7 +205,7 @@ jobs:
                       if pos >= 0:
                           comments.append((path, lineno, line[pos + 2:].strip()))
 
-          for path in [Path(".gitignore"), Path(".github/workflows/build.yml"), Path(".github/workflows/release.yml"), Path("CMakeLists.txt")]:
+          for path in [Path(".gitignore"), Path(".github/workflows/build.yml"), Path("CMakeLists.txt")]:
               for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                   stripped = line.lstrip()
                   if stripped.startswith("#"):
