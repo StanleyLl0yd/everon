@@ -19,17 +19,8 @@ jobs:
 
           app = Path("src/App.cpp")
           text = app.read_text(encoding="utf-8")
-          old = """            timer.ResumeMonotonicDuration();
-          }
-      }
-  
-      m_settings.SetTimerConfig(timer);"""
-          new = """            timer.ResumeMonotonicDuration();
-              m_settings.SetTimerRuntimeDeadline(timer.monotonicDeadlineMs);
-          }
-      }
-  
-      m_settings.SetTimerConfig(timer);"""
+          old = "            timer.ResumeMonotonicDuration();\n        }\n    }\n\n    m_settings.SetTimerConfig(timer);"
+          new = "            timer.ResumeMonotonicDuration();\n            m_settings.SetTimerRuntimeDeadline(timer.monotonicDeadlineMs);\n        }\n    }\n\n    m_settings.SetTimerConfig(timer);"
           if old not in text:
               raise SystemExit("App.cpp fixup target not found")
           app.write_text(text.replace(old, new), encoding="utf-8")
