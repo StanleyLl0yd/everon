@@ -9,10 +9,8 @@ public:
     PowerManager() = default;
     ~PowerManager();
 
-    void PreventSleep(bool keepDisplayOn);
-
-    void AllowSleep();
-
+    bool PreventSleep(bool keepDisplayOn);
+    bool AllowSleep();
     void SendKeyPress(WORD virtualKey);
 
     bool IsPreventingSleep() const noexcept { return m_isActive; }
