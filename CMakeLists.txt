@@ -31,6 +31,10 @@ target_link_libraries(Everon PRIVATE comctl32 shell32 advapi32)
 
 if(MSVC)
     target_compile_options(Everon PRIVATE /W4 /permissive- /utf-8)
+    target_link_options(Everon PRIVATE
+        /MANIFEST:EMBED
+        "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/src/app.manifest"
+    )
 endif()
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT Everon)
