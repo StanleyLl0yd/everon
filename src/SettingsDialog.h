@@ -24,6 +24,7 @@ private:
     void PopulateHotkeyComboBox(HWND dialog);
     void InitializeTimerControls(HWND dialog);
     void UpdateKeyPressControlsState(HWND dialog);
+    void UpdatePowerControlsState(HWND dialog);
     void UpdateTimerControlsState(HWND dialog);
     void UpdateUntilHint(HWND dialog);
     void UpdateDialogText(HWND dialog);

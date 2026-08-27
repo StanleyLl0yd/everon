@@ -4,6 +4,7 @@
 #include <memory>
 #include "Settings.h"
 #include "PowerManager.h"
+#include "PowerPolicy.h"
 
 namespace Everon {
 
@@ -28,15 +29,21 @@ private:
     void OnTimer(UINT_PTR timerId);
     void OnTrayIcon(LPARAM lParam);
     void OnHotkey(WPARAM wParam);
+    void OnPowerBroadcast(WPARAM eventType);
     void OnTaskbarCreated();
     void ToggleEnabled();
     void SetQuickDuration(DWORD minutes);
+    void SetQuickUntil(const SYSTEMTIME& untilTime);
+    void ShowCustomDuration();
+    void ShowQuickUntil();
     void ShowSettings();
     void ShowAbout();
     void Exit();
     void StartTimer();
     void StopTimer();
     void ArmExpireTimer(const TimerConfig& timer);
+    void RefreshStatus();
+    PowerContext QueryPowerContext() const noexcept;
     bool UpdatePowerState();
     void RegisterHotkey();
     bool SaveSettings();
@@ -50,13 +57,16 @@ private:
     std::unique_ptr<HotkeyManager> m_hotkeyManager;
     bool m_isSettingsDialogOpen = false;
     bool m_powerFailureNotified = false;
+    bool m_pausedByBatterySaver = false;
 
     UINT m_taskbarCreatedMessage = 0;
 
     static constexpr UINT_PTR TIMER_ID_KEYPRESS = 1;
     static constexpr UINT_PTR TIMER_ID_EXPIRE = 2;
     static constexpr UINT_PTR TIMER_ID_POWER_RETRY = 3;
+    static constexpr UINT_PTR TIMER_ID_STATUS_REFRESH = 4;
     static constexpr UINT POWER_RETRY_INTERVAL_MS = 30U * 1000U;
+    static constexpr UINT STATUS_REFRESH_INTERVAL_MS = 30U * 1000U;
 };
 
 }

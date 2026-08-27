@@ -25,6 +25,7 @@ enum class StringID : unsigned short {
     MenuTimer30,
     MenuTimer60,
     MenuTimer120,
+    MenuTimerCustom,
     MenuTimerUntil,
 
     SettingsTitle,
@@ -37,6 +38,8 @@ enum class StringID : unsigned short {
     SettingsKeyPress,
     SettingsKeyPressOff,
     SettingsKeepDisplay,
+    SettingsRespectBatterySaver,
+    SettingsAllowDisplayOnBattery,
     SettingsNotifyOnToggle,
     SettingsAutoStart,
     SettingsHotkeyLabel,
@@ -47,6 +50,11 @@ enum class StringID : unsigned short {
     SettingsTimerMinutes,
     SettingsTimerUntil,
     SettingsTimerTomorrow,
+
+    QuickDurationTitle,
+    QuickDurationLabel,
+    QuickUntilTitle,
+    QuickUntilLabel,
 
     ButtonOK,
     ButtonCancel,
@@ -66,6 +74,7 @@ enum class StringID : unsigned short {
 
     TooltipDisabled,
     TooltipEnabled,
+    StatusBatterySaverPaused,
 
     NotifyEnabled,
     NotifyDisabled,

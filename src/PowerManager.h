@@ -14,6 +14,7 @@ public:
     void SendKeyPress(WORD virtualKey);
 
     bool IsPreventingSleep() const noexcept { return m_isActive; }
+    bool IsKeepingDisplayOn() const noexcept { return m_isActive && m_keepDisplayOn; }
 
 private:
     bool m_isActive = false;

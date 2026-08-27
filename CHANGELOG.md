@@ -7,6 +7,30 @@ All notable changes to Everon are documented in this file.
 
 ---
 
+## 2.8.0 — 2026-08-27
+
+### Added
+
+- Added live tray status refresh so active timer information remains current while Everon runs.
+- Added a status line to the tray menu and check marks for active quick-duration presets.
+- Added native `Custom...` duration and dedicated `Until time...` quick-timer dialogs.
+- Added battery-aware options to respect Windows Battery Saver and optionally allow display keep-awake while on battery.
+- Added explicit power/resume handling so active timers and keep-awake state are refreshed after resume or power-source changes.
+- Added battery-policy regression tests and expanded Settings coverage.
+
+### Changed
+
+- Quick timers no longer require opening the full Settings dialog for custom duration or until-time selection.
+- Synthetic F15/F16/F17 input pauses while Battery Saver policy is actively suspending keep-awake behavior.
+- The Settings dialog now exposes battery behavior without changing existing defaults for upgraded users.
+
+### Security and maintenance
+
+- Pinned GitHub Actions to immutable commit SHAs and current Node 24 action versions.
+- Split release build/test and publish into separate least-privilege jobs.
+- Manual releases now build the exact workflow-dispatch commit through `github.sha`.
+- Added protected `v*` release-tag rules and expanded regression coverage for Settings and power handling.
+
 ## 2.7.0 — 2026-08-26
 
 ### Added

@@ -21,6 +21,8 @@ public:
     DWORD GetPeriodSec() const noexcept { return m_periodSec; }
     WORD GetVirtualKey() const noexcept { return m_vkKey; }
     bool GetKeepDisplayOn() const noexcept { return m_keepDisplayOn; }
+    bool GetRespectBatterySaver() const noexcept { return m_respectBatterySaver; }
+    bool GetAllowDisplayOnBattery() const noexcept { return m_allowDisplayOnBattery; }
     bool GetShowToggleNotifications() const noexcept { return m_showToggleNotifications; }
     bool GetAutoStart() const noexcept { return m_autoStart; }
     bool IsEnabled() const noexcept { return m_enabled; }
@@ -31,6 +33,8 @@ public:
     void SetPeriodSec(DWORD value) noexcept;
     void SetVirtualKey(WORD value) noexcept;
     void SetKeepDisplayOn(bool value) noexcept;
+    void SetRespectBatterySaver(bool value) noexcept;
+    void SetAllowDisplayOnBattery(bool value) noexcept;
     void SetShowToggleNotifications(bool value) noexcept;
     void SetAutoStart(bool value) noexcept { m_autoStart = value; }
     void SetEnabled(bool value) noexcept;
@@ -54,6 +58,8 @@ private:
     DWORD m_periodSec = DEFAULT_PERIOD_SEC;
     WORD m_vkKey = 0;
     bool m_keepDisplayOn = false;
+    bool m_respectBatterySaver = false;
+    bool m_allowDisplayOnBattery = true;
     bool m_showToggleNotifications = false;
     bool m_autoStart = false;
     bool m_enabled = true;

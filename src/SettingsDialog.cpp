@@ -15,7 +15,6 @@ SettingsDialog::SettingsDialog(HINSTANCE instance)
 
 bool SettingsDialog::Show(HWND parent, Settings& settings) {
     m_settings = &settings;
-    // Revert the live language preview if the dialog is cancelled.
     const Language oldLang = m_settings->GetLanguage();
     const bool oldDirty = m_settings->IsDirty();
 
@@ -71,6 +70,11 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
                         instance->OnKeyPressChanged(dialog);
                     }
                     return TRUE;
+                case IDC_KEEPDISPLAY_CHECK:
+                    if (HIWORD(wParam) == BN_CLICKED) {
+                        instance->UpdatePowerControlsState(dialog);
+                    }
+                    return TRUE;
                 case IDC_TIMER_INDEFINITE:
                 case IDC_TIMER_DURATION:
                 case IDC_TIMER_UNTIL:
@@ -102,6 +106,10 @@ void SettingsDialog::OnInitDialog(HWND dialog) {
     SetDlgItemInt(dialog, IDC_PERIOD_EDIT, m_settings->GetPeriodSec(), FALSE);
     CheckDlgButton(dialog, IDC_KEEPDISPLAY_CHECK,
                   m_settings->GetKeepDisplayOn() ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(dialog, IDC_RESPECT_BATTERY_SAVER,
+                  m_settings->GetRespectBatterySaver() ? BST_CHECKED : BST_UNCHECKED);
+    CheckDlgButton(dialog, IDC_ALLOW_DISPLAY_BATTERY,
+                  m_settings->GetAllowDisplayOnBattery() ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dialog, IDC_NOTIFY_TOGGLE_CHECK,
                   m_settings->GetShowToggleNotifications() ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dialog, IDC_AUTOSTART_CHECK,
@@ -109,6 +117,7 @@ void SettingsDialog::OnInitDialog(HWND dialog) {
     PopulateLanguageComboBox(dialog);
     PopulateKeyComboBox(GetDlgItem(dialog, IDC_KEY_COMBO), m_settings->GetVirtualKey());
     UpdateKeyPressControlsState(dialog);
+    UpdatePowerControlsState(dialog);
     PopulateHotkeyComboBox(dialog);
     InitializeTimerControls(dialog);
     UpdateDialogText(dialog);
@@ -124,6 +133,10 @@ void SettingsDialog::UpdateDialogText(HWND dialog) {
     SetDlgItemTextW(dialog, IDC_PERIOD_SECONDS_LABEL, loc.GetString(StringID::SettingsPeriodSeconds));
     SetDlgItemTextW(dialog, IDC_KEYPRESS_LABEL, loc.GetString(StringID::SettingsKeyPress));
     SetDlgItemTextW(dialog, IDC_KEEPDISPLAY_CHECK, loc.GetString(StringID::SettingsKeepDisplay));
+    SetDlgItemTextW(dialog, IDC_RESPECT_BATTERY_SAVER,
+                    loc.GetString(StringID::SettingsRespectBatterySaver));
+    SetDlgItemTextW(dialog, IDC_ALLOW_DISPLAY_BATTERY,
+                    loc.GetString(StringID::SettingsAllowDisplayOnBattery));
     SetDlgItemTextW(dialog, IDC_NOTIFY_TOGGLE_CHECK, loc.GetString(StringID::SettingsNotifyOnToggle));
     SetDlgItemTextW(dialog, IDC_AUTOSTART_CHECK, loc.GetString(StringID::SettingsAutoStart));
     SetDlgItemTextW(dialog, IDC_TIMER_GROUP, loc.GetString(StringID::SettingsTimer));
@@ -312,6 +325,10 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
     }
 
     const bool keepDisplayOn = IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED;
+    const bool respectBatterySaver =
+        IsDlgButtonChecked(dialog, IDC_RESPECT_BATTERY_SAVER) == BST_CHECKED;
+    const bool allowDisplayOnBattery =
+        IsDlgButtonChecked(dialog, IDC_ALLOW_DISPLAY_BATTERY) == BST_CHECKED;
     const bool notifyOnToggle = IsDlgButtonChecked(dialog, IDC_NOTIFY_TOGGLE_CHECK) == BST_CHECKED;
     const bool autoStart = IsDlgButtonChecked(dialog, IDC_AUTOSTART_CHECK) == BST_CHECKED;
 
@@ -353,7 +370,6 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
             GetLocalTime(&timer.untilTime);
         }
 
-        // Only the time of day is used; keep the stored date fields valid.
         SYSTEMTIME now = {};
         GetLocalTime(&now);
         timer.untilTime.wYear = now.wYear;
@@ -379,6 +395,8 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
     m_settings->SetPeriodSec(period);
     m_settings->SetVirtualKey(virtualKey);
     m_settings->SetKeepDisplayOn(keepDisplayOn);
+    m_settings->SetRespectBatterySaver(respectBatterySaver);
+    m_settings->SetAllowDisplayOnBattery(allowDisplayOnBattery);
     m_settings->SetShowToggleNotifications(notifyOnToggle);
     m_settings->SetAutoStart(autoStart);
     m_settings->SetHotkeyConfig(hotkey);
@@ -439,6 +457,11 @@ void SettingsDialog::UpdateKeyPressControlsState(HWND dialog) {
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_EDIT), enabled);
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_LABEL), enabled);
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_SECONDS_LABEL), enabled);
+}
+
+void SettingsDialog::UpdatePowerControlsState(HWND dialog) {
+    const BOOL keepDisplay = IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED;
+    EnableWindow(GetDlgItem(dialog, IDC_ALLOW_DISPLAY_BATTERY), keepDisplay);
 }
 
 void SettingsDialog::UpdateTimerControlsState(HWND dialog) {

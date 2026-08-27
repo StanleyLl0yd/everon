@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <functional>
+#include <string>
 
 namespace Everon {
 
@@ -20,7 +21,9 @@ public:
     bool ReAdd();
     void Remove();
 
-    void UpdateTooltip(const Settings& settings);
+    void UpdateTooltip(const Settings& settings,
+                       bool pausedByBatterySaver = false,
+                       bool displayKeepAwakeActive = false);
     void ShowNotification(const wchar_t* title, const wchar_t* message, DWORD flags);
     void SetEnabled(bool enabled);
     void HandleMessage(LPARAM lParam);
@@ -30,6 +33,8 @@ public:
     void SetAboutCallback(MenuCallback callback) { m_onAbout = std::move(callback); }
     void SetExitCallback(MenuCallback callback) { m_onExit = std::move(callback); }
     void SetDurationCallback(DurationCallback callback) { m_onDuration = std::move(callback); }
+    void SetCustomDurationCallback(MenuCallback callback) { m_onCustomDuration = std::move(callback); }
+    void SetUntilCallback(MenuCallback callback) { m_onUntil = std::move(callback); }
 
     static constexpr UINT WM_TRAYICON = WM_APP + 1;
 
@@ -48,8 +53,12 @@ private:
     MenuCallback m_onSettings;
     MenuCallback m_onAbout;
     MenuCallback m_onExit;
+    MenuCallback m_onCustomDuration;
+    MenuCallback m_onUntil;
     DurationCallback m_onDuration;
 
+    std::wstring m_statusText = L"Everon";
+    DWORD m_activeDurationMinutes = 0;
     bool m_isEnabled = true;
 };
 

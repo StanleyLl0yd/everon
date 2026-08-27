@@ -32,6 +32,7 @@ static const wchar_t* const kStrings[kStrCount][kLangCount] = {
     { L"30 minutes", L"30 минут", L"30 minutes", L"30 Minuten", L"30 minuti", L"30 minutos" },
     { L"1 hour", L"1 час", L"1 heure", L"1 Stunde", L"1 ora", L"1 hora" },
     { L"2 hours", L"2 часа", L"2 heures", L"2 Stunden", L"2 ore", L"2 horas" },
+    { L"Custom...", L"Другое...", L"Personnalisé...", L"Benutzerdefiniert...", L"Personalizzato...", L"Personalizado..." },
     { L"Until time...", L"До времени...", L"Jusqu'à l'heure...", L"Bis Uhrzeit...", L"Fino all'ora...", L"Hasta la hora..." },
 
     { L"Everon Settings", L"Настройки Everon", L"Paramètres Everon", L"Everon Einstellungen", L"Impostazioni Everon", L"Configuración de Everon" },
@@ -44,6 +45,8 @@ static const wchar_t* const kStrings[kStrCount][kLangCount] = {
     { L"Key press:", L"Нажатие клавиши:", L"Touche:", L"Taste:", L"Tasto:", L"Tecla:" },
     { L"Off (no SendInput)", L"Выкл (без SendInput)", L"Désactivé (pas de SendInput)", L"Aus (kein SendInput)", L"Disattivato (nessun SendInput)", L"Desactivado (sin SendInput)" },
     { L"Keep display on", L"Не выключать экран", L"Garder l'écran allumé", L"Display eingeschaltet lassen", L"Mantieni schermo acceso", L"Mantener pantalla encendida" },
+    { L"Respect Battery Saver", L"Учитывать экономию заряда", L"Respecter l'économiseur de batterie", L"Energiesparmodus berücksichtigen", L"Rispetta Risparmio batteria", L"Respetar Ahorro de batería" },
+    { L"Keep display on while on battery", L"Не выключать экран от батареи", L"Garder l'écran allumé sur batterie", L"Display im Akkubetrieb eingeschaltet lassen", L"Mantieni schermo acceso a batteria", L"Mantener pantalla encendida con batería" },
     { L"Show notifications on Enable/Disable", L"Показывать уведомления при вкл/выкл", L"Afficher des notifications à l'activation/désactivation", L"Benachrichtigungen bei Ein/Aus anzeigen", L"Mostra notifiche su attiva/disattiva", L"Mostrar notificaciones al activar/desactivar" },
     { L"Start with Windows", L"Запускать с Windows", L"Démarrer avec Windows", L"Mit Windows starten", L"Avvia con Windows", L"Iniciar con Windows" },
     { L"Toggle hotkey:", L"Горячая клавиша:", L"Raccourci de basculement:", L"Umschalt-Tastenkombination:", L"Tasto rapido di commutazione:", L"Atajo de alternancia:" },
@@ -54,6 +57,11 @@ static const wchar_t* const kStrings[kStrCount][kLangCount] = {
     { L"minutes (5-1440)", L"минут (5-1440)", L"minutes (5-1440)", L"Minuten (5-1440)", L"minuti (5-1440)", L"minutos (5-1440)" },
     { L"Until", L"До", L"Jusqu'à", L"Bis", L"Fino a", L"Hasta" },
     { L"Tomorrow", L"Завтра", L"Demain", L"Morgen", L"Domani", L"Mañana" },
+
+    { L"Custom timer", L"Свой таймер", L"Minuteur personnalisé", L"Benutzerdefinierter Timer", L"Timer personalizzato", L"Temporizador personalizado" },
+    { L"Minutes (5-1440):", L"Минуты (5-1440):", L"Minutes (5-1440) :", L"Minuten (5-1440):", L"Minuti (5-1440):", L"Minutos (5-1440):" },
+    { L"Until time", L"До времени", L"Jusqu'à l'heure", L"Bis Uhrzeit", L"Fino all'ora", L"Hasta la hora" },
+    { L"Until:", L"До:", L"Jusqu'à :", L"Bis:", L"Fino a:", L"Hasta:" },
 
     { L"OK", L"ОК", L"OK", L"OK", L"OK", L"Aceptar" },
     { L"Cancel", L"Отмена", L"Annuler", L"Abbrechen", L"Annulla", L"Cancelar" },
@@ -73,6 +81,7 @@ static const wchar_t* const kStrings[kStrCount][kLangCount] = {
 
     { L"Everon - Disabled", L"Everon - Отключено", L"Everon - Désactivé", L"Everon - Deaktiviert", L"Everon - Disattivato", L"Everon - Desactivado" },
     { L"Everon - Enabled", L"Everon - Включено", L"Everon - Activé", L"Everon - Aktiviert", L"Everon - Attivato", L"Everon - Activado" },
+    { L"Paused by Battery Saver", L"Пауза из-за экономии заряда", L"En pause par l'économiseur de batterie", L"Durch Energiesparmodus pausiert", L"In pausa per Risparmio batteria", L"En pausa por Ahorro de batería" },
 
     { L"Everon enabled", L"Everon включен", L"Everon activé", L"Everon aktiviert", L"Everon attivato", L"Everon activado" },
     { L"Everon disabled", L"Everon отключен", L"Everon désactivé", L"Everon deaktiviert", L"Everon disattivato", L"Everon desactivado" },

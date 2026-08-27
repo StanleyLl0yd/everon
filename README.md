@@ -8,7 +8,7 @@
 
 A lightweight native Windows tray utility that prevents automatic system sleep while it is enabled. Everon runs without a main window and is controlled from the system tray.
 
-**Source version:** 2.7.0 · **Platform:** Windows x64 · **Language:** C++17
+**Source version:** 2.8.0 · **Platform:** Windows x64 · **Language:** C++17
 
 [GitHub Releases](https://github.com/StanleyLl0yd/everon/releases)
 
@@ -16,11 +16,16 @@ A lightweight native Windows tray utility that prevents automatic system sleep w
 
 - Prevents automatic system sleep using the Windows `SetThreadExecutionState` API.
 - Can optionally keep the display active.
+- Battery-aware options can respect Windows Battery Saver and suppress display keep-awake while running on battery.
 - Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from **1 second to 24 hours**.
 - Three timer modes: **Indefinitely**, **For duration**, and **Until time**.
-- Quick tray timers for **15 minutes**, **30 minutes**, **1 hour**, and **2 hours**; choosing one enables Everon immediately and replaces the current timer mode.
+- Quick tray timers for **15 minutes**, **30 minutes**, **1 hour**, and **2 hours**, plus native **Custom...** and **Until time...** dialogs.
+- Choosing a quick timer enables Everon immediately and replaces the current timer mode.
 - **Until time** clearly indicates when the selected time means tomorrow.
 - Duration timers use a monotonic clock while Everon is running, so changing the Windows clock does not change the active duration; a persisted UTC deadline is used to restore the timer after a restart.
+- Live tray status keeps active timer information current and the tray menu shows the current Everon state.
+- Active quick-duration presets are marked in the tray menu.
+- Power-source changes and resume events immediately refresh the active timer and keep-awake state.
 - Enable or disable Everon from the tray menu.
 - Single-click the tray icon to open **Settings**.
 - Uses a visually muted tray icon while Everon is disabled.
@@ -38,6 +43,8 @@ A lightweight native Windows tray utility that prevents automatic system sleep w
 
 Everon is a keep-awake utility. It prevents automatic system sleep while enabled, but does **not** intercept manual lock, sleep, sign-out, or shutdown commands and is not intended to bypass system or organization policies.
 
+When **Respect Battery Saver** is enabled and Windows Battery Saver becomes active, Everon temporarily releases its keep-awake request and suppresses synthetic F15/F16/F17 input until Battery Saver is no longer active. Existing installations keep the previous behavior unless this option is enabled.
+
 The application is portable, requires no installer, and does not require administrator privileges. If **Start with Windows** is enabled, keep `Everon.exe` in a stable location; after moving the executable, enable autostart again so the stored path is updated.
 
 ## Usage
@@ -45,9 +52,9 @@ The application is portable, requires no installer, and does not require adminis
 1. Download `Everon.exe` from the latest [GitHub Release](https://github.com/StanleyLl0yd/everon/releases).
 2. Run it.
 3. Use the Everon icon in the Windows system tray:
-   - right-click to enable or disable Everon, start a quick timer, open **Settings** or **About**, or exit;
+   - right-click to see live status, enable or disable Everon, start a preset/custom/until-time timer, open **Settings** or **About**, or exit;
    - single-click to open **Settings**.
-4. Configure display behavior, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
+4. Configure display behavior, battery policy, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
 
 ## Build from source
 
@@ -65,7 +72,7 @@ The executable is normally created at:
 build\Release\Everon.exe
 ```
 
-Project checks used by CI include the Windows x64 Release build, timer tests, hotkey parsing/serialization tests, and SHA-256 generation for the build artifact.
+CI covers the Windows x64 Release build, timer behavior, hotkey parsing/serialization, Settings state, PowerManager behavior, battery-policy decisions, and SHA-256 generation for the build artifact.
 
 Main stack: C++17, native Win32 API, CMake, and CTest.
 
