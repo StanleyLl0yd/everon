@@ -71,4 +71,34 @@ if(BUILD_TESTING)
         target_link_options(HotkeyManagerTests PRIVATE /guard:cf /CETCOMPAT)
     endif()
     add_test(NAME HotkeyManagerTests COMMAND HotkeyManagerTests)
+
+    add_executable(SettingsTests
+        tests/SettingsTests.cpp
+        src/Settings.cpp
+        src/Localization.cpp
+        src/HotkeyManager.cpp
+        src/TimerMode.cpp
+        src/Utils.cpp
+    )
+    target_include_directories(SettingsTests PRIVATE src)
+    target_compile_definitions(SettingsTests PRIVATE UNICODE _UNICODE)
+    target_link_libraries(SettingsTests PRIVATE advapi32)
+    if(MSVC)
+        target_compile_options(SettingsTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        target_link_options(SettingsTests PRIVATE /guard:cf /CETCOMPAT)
+    endif()
+    add_test(NAME SettingsTests COMMAND SettingsTests)
+
+    add_executable(PowerManagerTests
+        tests/PowerManagerTests.cpp
+        src/PowerManager.cpp
+        src/Utils.cpp
+    )
+    target_include_directories(PowerManagerTests PRIVATE src)
+    target_compile_definitions(PowerManagerTests PRIVATE UNICODE _UNICODE)
+    if(MSVC)
+        target_compile_options(PowerManagerTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        target_link_options(PowerManagerTests PRIVATE /guard:cf /CETCOMPAT)
+    endif()
+    add_test(NAME PowerManagerTests COMMAND PowerManagerTests)
 endif()
