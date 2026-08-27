@@ -2,6 +2,7 @@
 #include "AboutDialog.h"
 #include "TrayIcon.h"
 #include "SettingsDialog.h"
+#include "QuickTimerDialog.h"
 #include "HotkeyManager.h"
 #include "Utils.h"
 #include "Localization.h"
@@ -55,7 +56,6 @@ void App::ArmExpireTimer(const TimerConfig& timer) {
 
     UINT intervalMs = static_cast<UINT>(remainingMs);
     if (remainingMs > kWinTimerMaxMs) {
-        // Chunk long delays to stay within SetTimer's range.
         intervalMs = kLongRearmChunkMs;
     }
 
@@ -144,6 +144,9 @@ LRESULT CALLBACK App::WindowProc(HWND window, UINT message,
         case WM_HOTKEY:
             app->OnHotkey(wParam);
             return 0;
+        case WM_POWERBROADCAST:
+            app->OnPowerBroadcast(wParam);
+            return TRUE;
         case WM_SHOW_SETTINGS:
             app->ShowSettings();
             return 0;
@@ -161,6 +164,8 @@ void App::OnCreate() {
     m_trayIcon = std::make_unique<TrayIcon>(m_window, m_instance);
     m_trayIcon->SetToggleCallback([this]() { ToggleEnabled(); });
     m_trayIcon->SetDurationCallback([this](DWORD minutes) { SetQuickDuration(minutes); });
+    m_trayIcon->SetCustomDurationCallback([this]() { ShowCustomDuration(); });
+    m_trayIcon->SetUntilCallback([this]() { ShowQuickUntil(); });
     m_trayIcon->SetSettingsCallback([this]() { ShowSettings(); });
     m_trayIcon->SetAboutCallback([this]() { ShowAbout(); });
     m_trayIcon->SetExitCallback([this]() { Exit(); });
@@ -171,13 +176,10 @@ void App::OnCreate() {
                     loc.GetString(StringID::ErrorTrayIcon),
                     loc.GetString(StringID::ErrorTitle),
                     MB_OK | MB_ICONWARNING);
-
-        // Exit if the tray icon cannot be created; otherwise the app would be inaccessible.
         DestroyWindow(m_window);
         return;
     }
 
-    m_trayIcon->UpdateTooltip(m_settings);
     m_trayIcon->SetEnabled(m_settings.IsEnabled());
 
     m_hotkeyManager = std::make_unique<HotkeyManager>(m_window);
@@ -187,11 +189,15 @@ void App::OnCreate() {
         UpdatePowerState();
         StartTimer();
     }
+
+    Utils::SetTimerChecked(m_window, TIMER_ID_STATUS_REFRESH, STATUS_REFRESH_INTERVAL_MS);
+    RefreshStatus();
 }
 
 void App::OnDestroy() {
     StopTimer();
     KillTimer(m_window, TIMER_ID_POWER_RETRY);
+    KillTimer(m_window, TIMER_ID_STATUS_REFRESH);
     m_powerManager.AllowSleep();
     m_hotkeyManager.reset();
     m_trayIcon.reset();
@@ -202,6 +208,13 @@ void App::OnDestroy() {
 void App::OnTimer(UINT_PTR timerId) {
     if (timerId == TIMER_ID_POWER_RETRY) {
         UpdatePowerState();
+        RefreshStatus();
+        return;
+    }
+
+    if (timerId == TIMER_ID_STATUS_REFRESH) {
+        UpdatePowerState();
+        RefreshStatus();
         return;
     }
 
@@ -210,6 +223,9 @@ void App::OnTimer(UINT_PTR timerId) {
     }
 
     if (timerId == TIMER_ID_KEYPRESS) {
+        if (m_pausedByBatterySaver) {
+            return;
+        }
         const WORD vk = m_settings.GetVirtualKey();
         if (vk != 0) {
             m_powerManager.SendKeyPress(vk);
@@ -233,20 +249,24 @@ void App::OnTimer(UINT_PTR timerId) {
             SaveSettings();
             StopTimer();
             UpdatePowerState();
-            m_trayIcon->UpdateTooltip(m_settings);
-            m_trayIcon->SetEnabled(false);
+            if (m_trayIcon) {
+                m_trayIcon->SetEnabled(false);
+            }
+            RefreshStatus();
 
             auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                          loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);
         } else {
             ArmExpireTimer(timer);
+            RefreshStatus();
         }
     }
 }
 
 void App::OnTrayIcon(LPARAM lParam) {
     if (m_trayIcon) {
+        RefreshStatus();
         m_trayIcon->HandleMessage(lParam);
     }
 }
@@ -254,6 +274,18 @@ void App::OnTrayIcon(LPARAM lParam) {
 void App::OnHotkey(WPARAM wParam) {
     if (m_hotkeyManager) {
         m_hotkeyManager->HandleHotkey(wParam);
+    }
+}
+
+void App::OnPowerBroadcast(WPARAM eventType) {
+    if (eventType == PBT_APMRESUMEAUTOMATIC ||
+        eventType == PBT_APMRESUMESUSPEND ||
+        eventType == PBT_APMPOWERSTATUSCHANGE) {
+        if (m_settings.IsEnabled()) {
+            StartTimer();
+        }
+        UpdatePowerState();
+        RefreshStatus();
     }
 }
 
@@ -287,8 +319,8 @@ void App::ToggleEnabled() {
 
     SaveSettings();
     if (m_trayIcon) {
-        m_trayIcon->UpdateTooltip(m_settings);
         m_trayIcon->SetEnabled(m_settings.IsEnabled());
+        RefreshStatus();
 
         if (m_settings.GetShowToggleNotifications()) {
             auto& loc = Localization::Instance();
@@ -320,13 +352,57 @@ void App::SetQuickDuration(DWORD minutes) {
 
     if (m_trayIcon) {
         m_trayIcon->SetEnabled(true);
-        m_trayIcon->UpdateTooltip(m_settings);
+        RefreshStatus();
 
         if (!wasEnabled && m_settings.GetShowToggleNotifications()) {
             auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                          loc.GetString(StringID::NotifyEnabled), NIIF_INFO);
         }
+    }
+}
+
+void App::SetQuickUntil(const SYSTEMTIME& untilTime) {
+    const bool wasEnabled = m_settings.IsEnabled();
+    TimerConfig timer = m_settings.GetTimerConfig();
+    timer.mode = TimerMode::UntilTime;
+    timer.untilTime = untilTime;
+    timer.ResetStartTime();
+
+    m_settings.SetTimerConfig(timer);
+    m_settings.SetEnabled(true);
+    UpdatePowerState();
+    StartTimer();
+    SaveSettings();
+
+    if (m_trayIcon) {
+        m_trayIcon->SetEnabled(true);
+        RefreshStatus();
+
+        if (!wasEnabled && m_settings.GetShowToggleNotifications()) {
+            auto& loc = Localization::Instance();
+            m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
+                                         loc.GetString(StringID::NotifyEnabled), NIIF_INFO);
+        }
+    }
+}
+
+void App::ShowCustomDuration() {
+    TimerConfig timer = m_settings.GetTimerConfig();
+    DWORD minutes = timer.mode == TimerMode::Duration ? timer.durationMinutes : 60;
+    if (ShowQuickDurationDialog(m_instance, m_window, minutes, minutes)) {
+        SetQuickDuration(minutes);
+    }
+}
+
+void App::ShowQuickUntil() {
+    TimerConfig timer = m_settings.GetTimerConfig();
+    SYSTEMTIME untilTime = timer.untilTime;
+    if (untilTime.wYear == 0) {
+        GetLocalTime(&untilTime);
+    }
+    if (ShowQuickUntilDialog(m_instance, m_window, untilTime, untilTime)) {
+        SetQuickUntil(untilTime);
     }
 }
 
@@ -350,11 +426,13 @@ void App::ShowSettings() {
 
             UpdatePowerState();
             StartTimer();
+        } else {
+            UpdatePowerState();
         }
 
         if (m_trayIcon) {
-            m_trayIcon->UpdateTooltip(m_settings);
             m_trayIcon->SetEnabled(m_settings.IsEnabled());
+            RefreshStatus();
         }
         RegisterHotkey();
     }
@@ -371,7 +449,7 @@ void App::OnTaskbarCreated() {
 
     if (m_trayIcon->ReAdd()) {
         m_trayIcon->SetEnabled(m_settings.IsEnabled());
-        m_trayIcon->UpdateTooltip(m_settings);
+        RefreshStatus();
     }
 }
 
@@ -403,7 +481,6 @@ void App::StartTimer() {
 
     bool persistRuntimeState = false;
     if (timer.mode == TimerMode::UntilTime && timer.endTimeUtc == 0) {
-        // Pin UntilTime to a concrete deadline so it cannot roll into the next day when it fires.
         timer.ResetStartTime();
         persistRuntimeState = true;
     } else if (timer.mode == TimerMode::Duration) {
@@ -428,9 +505,35 @@ void App::StopTimer() {
     KillTimer(m_window, TIMER_ID_EXPIRE);
 }
 
+void App::RefreshStatus() {
+    if (m_trayIcon) {
+        m_trayIcon->UpdateTooltip(m_settings, m_pausedByBatterySaver);
+    }
+}
+
+PowerContext App::QueryPowerContext() const noexcept {
+    SYSTEM_POWER_STATUS status = {};
+    if (!GetSystemPowerStatus(&status)) {
+        return {};
+    }
+
+    PowerContext context;
+    context.onBattery = status.ACLineStatus == 0;
+    context.batterySaver = status.SystemStatusFlag != 0;
+    return context;
+}
+
 bool App::UpdatePowerState() {
-    const bool ok = m_settings.IsEnabled()
-        ? m_powerManager.PreventSleep(m_settings.GetKeepDisplayOn())
+    const PowerDecision decision = EvaluatePowerPolicy(
+        m_settings.IsEnabled(),
+        m_settings.GetKeepDisplayOn(),
+        m_settings.GetRespectBatterySaver(),
+        m_settings.GetAllowDisplayOnBattery(),
+        QueryPowerContext());
+
+    m_pausedByBatterySaver = decision.pausedByBatterySaver;
+    const bool ok = decision.preventSystemSleep
+        ? m_powerManager.PreventSleep(decision.keepDisplayOn)
         : m_powerManager.AllowSleep();
 
     if (ok) {
