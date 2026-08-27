@@ -1,6 +1,8 @@
 #define IDI_EVERON                      101
 #define IDD_SETTINGS                    102
 #define IDD_ABOUT                       103
+#define IDD_QUICK_DURATION              104
+#define IDD_QUICK_UNTIL                 105
 #define IDC_STATIC                      -1
 #define IDC_LANGUAGE_LABEL              1000
 #define IDC_PERIOD_EDIT                 1001
@@ -29,6 +31,13 @@
 #define IDC_ABOUT_LICENSE               1025
 #define IDC_ABOUT_LINK                  1026
 #define IDC_TIMER_UNTIL_HINT            1027
+#define IDC_RESPECT_BATTERY_SAVER       1028
+#define IDC_ALLOW_DISPLAY_BATTERY       1029
+#define IDC_QUICK_DURATION_LABEL        1030
+#define IDC_QUICK_DURATION_EDIT         1031
+#define IDC_QUICK_UNTIL_LABEL           1032
+#define IDC_QUICK_UNTIL_TIME            1033
+#define IDC_QUICK_UNTIL_HINT            1034
 #define IDM_TOGGLE                      40001
 #define IDM_SETTINGS                    40002
 #define IDM_ABOUT                       40003
@@ -38,3 +47,4 @@
 #define IDM_TIMER_60                    40007
 #define IDM_TIMER_120                   40008
 #define IDM_TIMER_UNTIL                 40009
+#define IDM_TIMER_CUSTOM                40010
