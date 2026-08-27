@@ -9,25 +9,31 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Build and publish
     runs-on: windows-latest
 
     steps:
+      - name: Verify manual source
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_name }}" -ne "${{ github.event.repository.default_branch }}") {
+            throw "Manual releases must be dispatched from the default branch"
+          }
+
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.repository.default_branch || github.ref }}
+          fetch-depth: 0
 
-      - name: Configure
-        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
-
-      - name: Build
-        run: cmake --build build --config Release --parallel
-
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
-
-      - name: Resolve version
+      - name: Resolve release
         shell: pwsh
         run: |
           function Read-Define([string]$name) {
@@ -49,6 +55,7 @@ jobs:
           }
 
           $tag = "v$version"
+          $target = (git rev-parse HEAD).Trim()
 
           if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -ne $tag) {
             throw "Tag ${{ github.ref_name }} does not match Version.h ($tag)"
@@ -56,12 +63,33 @@ jobs:
 
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TARGET_SHA=$target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Ensure release is new
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $env:TAG already exists. Bump the version before publishing another release."
+          }
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Generate SHA-256
         shell: pwsh
         run: |
           $hash = (Get-FileHash "build/Release/Everon.exe" -Algorithm SHA256).Hash.ToLower()
           "$hash  Everon.exe" | Set-Content "build/Release/Everon.exe.sha256" -Encoding ascii
+          "EXE_SHA256=$hash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Prepare release notes
         shell: pwsh
@@ -74,15 +102,34 @@ jobs:
           }
           $match.Value.Trim() | Set-Content "release-notes.md" -Encoding utf8
 
+      - name: Ensure release tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $existing = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:TAG" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            $ref = $existing | ConvertFrom-Json
+            if ($ref.object.type -ne "commit" -or $ref.object.sha -ne $env:TARGET_SHA) {
+              throw "Tag $env:TAG does not point to the verified release commit $env:TARGET_SHA"
+            }
+          } else {
+            gh api --method POST "repos/$env:GITHUB_REPOSITORY/git/refs" `
+              -f "ref=refs/tags/$env:TAG" `
+              -f "sha=$env:TARGET_SHA" | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to create tag $env:TAG"
+            }
+          }
+
       - name: Publish GitHub Release
-        if: github.ref_type == 'tag'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
           if ($LASTEXITCODE -eq 0) {
-            throw "Release $env:TAG already exists. Published releases are immutable; bump the version instead."
+            throw "Release $env:TAG appeared while the workflow was running"
           }
 
           gh release create "$env:TAG" `
@@ -92,4 +139,31 @@ jobs:
             --verify-tag `
             --title "Everon $env:TAG" `
             --notes-file "release-notes.md"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create release" }
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to create release $env:TAG"
+          }
+
+      - name: Verify release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tagRef = gh api "repos/$env:GITHUB_REPOSITORY/git/ref/tags/$env:TAG" | ConvertFrom-Json
+          if ($tagRef.object.type -ne "commit" -or $tagRef.object.sha -ne $env:TARGET_SHA) {
+            throw "Published tag does not point to the verified release commit"
+          }
+
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$env:TAG" | ConvertFrom-Json
+          if ($release.draft -or $release.prerelease) {
+            throw "$env:TAG must be a stable published release"
+          }
+
+          $exe = $release.assets | Where-Object { $_.name -eq "Everon.exe" } | Select-Object -First 1
+          $checksum = $release.assets | Where-Object { $_.name -eq "Everon.exe.sha256" } | Select-Object -First 1
+          if (-not $exe -or -not $checksum) {
+            throw "Release assets are incomplete"
+          }
+
+          if ($exe.digest -and $exe.digest -ne "sha256:$env:EXE_SHA256") {
+            throw "Published Everon.exe digest does not match the verified build"
+          }
