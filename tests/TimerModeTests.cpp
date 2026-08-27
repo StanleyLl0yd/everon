@@ -78,6 +78,15 @@ int main() {
     Expect(resumed.GetRemainingMilliseconds() > 0,
            "resumed duration should retain time remaining");
 
+    TimerConfig expired;
+    expired.mode = TimerMode::Duration;
+    expired.durationMinutes = 5;
+    expired.endTimeUtc = 1;
+    Expect(expired.IsExpired(), "past persisted duration should be expired");
+    expired.ResumeMonotonicDuration();
+    Expect(expired.monotonicDeadlineMs == 0,
+           "expired persisted duration should not create a monotonic deadline");
+
     TimerConfig until;
     until.mode = TimerMode::UntilTime;
     until.untilTime = TwoMinutesFromNowLocal();
@@ -110,6 +119,18 @@ int main() {
     fixedNow.wSecond = 0;
     fixedNow.wMilliseconds = 0;
     Expect(!dayCheck.IsUntilNextDay(fixedNow), "exact current minute should resolve to today");
+
+    fixedNow.wHour = 23;
+    fixedNow.wMinute = 59;
+    dayCheck.untilTime.wHour = 0;
+    dayCheck.untilTime.wMinute = 0;
+    Expect(dayCheck.IsUntilNextDay(fixedNow), "midnight after 23:59 should resolve to tomorrow");
+
+    fixedNow.wHour = 0;
+    fixedNow.wMinute = 0;
+    dayCheck.untilTime.wHour = 23;
+    dayCheck.untilTime.wMinute = 59;
+    Expect(!dayCheck.IsUntilNextDay(fixedNow), "23:59 after midnight should resolve to today");
 
     TimerConfig invalidUntil = until;
     invalidUntil.untilTime.wHour = 24;
