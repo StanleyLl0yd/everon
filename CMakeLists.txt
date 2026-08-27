@@ -112,4 +112,16 @@ if(BUILD_TESTING)
         target_link_options(PowerPolicyTests PRIVATE /guard:cf /CETCOMPAT)
     endif()
     add_test(NAME PowerPolicyTests COMMAND PowerPolicyTests)
+
+    add_executable(LocalizationTests
+        tests/LocalizationTests.cpp
+        src/Localization.cpp
+    )
+    target_include_directories(LocalizationTests PRIVATE src)
+    target_compile_definitions(LocalizationTests PRIVATE UNICODE _UNICODE)
+    if(MSVC)
+        target_compile_options(LocalizationTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        target_link_options(LocalizationTests PRIVATE /guard:cf /CETCOMPAT)
+    endif()
+    add_test(NAME LocalizationTests COMMAND LocalizationTests)
 endif()
