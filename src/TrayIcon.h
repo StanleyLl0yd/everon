@@ -21,7 +21,9 @@ public:
     bool ReAdd();
     void Remove();
 
-    void UpdateTooltip(const Settings& settings, bool pausedByBatterySaver = false);
+    void UpdateTooltip(const Settings& settings,
+                       bool pausedByBatterySaver = false,
+                       bool displayKeepAwakeActive = false);
     void ShowNotification(const wchar_t* title, const wchar_t* message, DWORD flags);
     void SetEnabled(bool enabled);
     void HandleMessage(LPARAM lParam);
