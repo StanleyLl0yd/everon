@@ -45,6 +45,12 @@ int main() {
     settings.SetKeepDisplayOn(true);
     Expect(settings.GetKeepDisplayOn(), "display keep-awake should be configurable");
 
+    settings.SetRespectBatterySaver(true);
+    Expect(settings.GetRespectBatterySaver(), "Battery Saver behavior should be configurable");
+
+    settings.SetAllowDisplayOnBattery(false);
+    Expect(!settings.GetAllowDisplayOnBattery(), "display behavior on battery should be configurable");
+
     settings.SetShowToggleNotifications(true);
     Expect(settings.GetShowToggleNotifications(), "toggle notifications should be configurable");
 
