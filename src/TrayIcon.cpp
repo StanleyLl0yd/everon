@@ -172,7 +172,9 @@ void TrayIcon::Remove() {
     }
 }
 
-void TrayIcon::UpdateTooltip(const Settings& settings, bool pausedByBatterySaver) {
+void TrayIcon::UpdateTooltip(const Settings& settings,
+                             bool pausedByBatterySaver,
+                             bool displayKeepAwakeActive) {
     if (m_notifyData.cbSize == 0) {
         return;
     }
@@ -214,7 +216,7 @@ void TrayIcon::UpdateTooltip(const Settings& settings, bool pausedByBatterySaver
             AppendBullet(part);
         }
 
-        if (settings.GetKeepDisplayOn()) {
+        if (displayKeepAwakeActive) {
             AppendBullet(loc.GetString(StringID::SettingsKeepDisplay));
         }
 
