@@ -507,7 +507,9 @@ void App::StopTimer() {
 
 void App::RefreshStatus() {
     if (m_trayIcon) {
-        m_trayIcon->UpdateTooltip(m_settings, m_pausedByBatterySaver);
+        m_trayIcon->UpdateTooltip(m_settings,
+                                  m_pausedByBatterySaver,
+                                  m_powerManager.IsKeepingDisplayOn());
     }
 }
 
