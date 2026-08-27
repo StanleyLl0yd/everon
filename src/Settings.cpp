@@ -52,7 +52,6 @@ std::wstring GetExecutablePath() {
 
 Settings::Settings() {
     m_autoStart = IsAutoStartEnabled();
-
     GetLocalTime(&m_timerConfig.untilTime);
 }
 
@@ -107,6 +106,20 @@ void Settings::SetVirtualKey(WORD value) noexcept {
 void Settings::SetKeepDisplayOn(bool value) noexcept {
     if (m_keepDisplayOn != value) {
         m_keepDisplayOn = value;
+        m_dirty = true;
+    }
+}
+
+void Settings::SetRespectBatterySaver(bool value) noexcept {
+    if (m_respectBatterySaver != value) {
+        m_respectBatterySaver = value;
+        m_dirty = true;
+    }
+}
+
+void Settings::SetAllowDisplayOnBattery(bool value) noexcept {
+    if (m_allowDisplayOnBattery != value) {
+        m_allowDisplayOnBattery = value;
         m_dirty = true;
     }
 }
@@ -180,31 +193,31 @@ bool Settings::LoadFromRegistry() {
     };
 
     auto ReadString = [hKey](const wchar_t* name, wchar_t* buffer, DWORD bufferSize) -> bool {
-    const size_t capacity = bufferSize / sizeof(wchar_t);
-    if (!buffer || capacity == 0) {
-        return false;
-    }
-
-    buffer[0] = L'\0';
-    buffer[capacity - 1] = L'\0';
-
-    DWORD type = 0;
-    DWORD size = bufferSize;
-    const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
-                                      reinterpret_cast<LPBYTE>(buffer), &size);
-    if (res == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
-        size_t terminator = size / sizeof(wchar_t);
-        if (terminator >= capacity) {
-            terminator = capacity - 1;
+        const size_t capacity = bufferSize / sizeof(wchar_t);
+        if (!buffer || capacity == 0) {
+            return false;
         }
-        buffer[terminator] = L'\0';
-        return true;
-    }
-    if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
-        Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_SZ)");
-    }
-    return false;
-};
+
+        buffer[0] = L'\0';
+        buffer[capacity - 1] = L'\0';
+
+        DWORD type = 0;
+        DWORD size = bufferSize;
+        const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
+                                          reinterpret_cast<LPBYTE>(buffer), &size);
+        if (res == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
+            size_t terminator = size / sizeof(wchar_t);
+            if (terminator >= capacity) {
+                terminator = capacity - 1;
+            }
+            buffer[terminator] = L'\0';
+            return true;
+        }
+        if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
+            Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_SZ)");
+        }
+        return false;
+    };
 
     DWORD tempDword = 0;
     if (ReadDword(L"PeriodSec", tempDword)) {
@@ -215,6 +228,12 @@ bool Settings::LoadFromRegistry() {
     }
     if (ReadDword(L"KeepDisplayOn", tempDword)) {
         m_keepDisplayOn = (tempDword != 0);
+    }
+    if (ReadDword(L"RespectBatterySaver", tempDword)) {
+        m_respectBatterySaver = (tempDword != 0);
+    }
+    if (ReadDword(L"AllowDisplayOnBattery", tempDword)) {
+        m_allowDisplayOnBattery = (tempDword != 0);
     }
     if (ReadDword(L"ShowToggleNotifications", tempDword)) {
         m_showToggleNotifications = (tempDword != 0);
@@ -268,12 +287,10 @@ bool Settings::LoadFromRegistry() {
         Utils::CheckWinApiStatus(qRes, L"RegQueryValueExW(TimerStartTime)");
     }
 
-    // Prefer the persisted UTC deadline to legacy local start time.
     ULONGLONG tempQword = 0;
     if (ReadQword(L"TimerEndUtc", tempQword)) {
         timer.endTimeUtc = tempQword;
     } else if (timer.mode == TimerMode::Duration && timer.startTime.wYear != 0) {
-        // Recover deadlines saved by older versions.
         SYSTEMTIME startUtc = {};
         if (!TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {
             startUtc = timer.startTime;
@@ -283,7 +300,8 @@ bool Settings::LoadFromRegistry() {
             ULARGE_INTEGER u;
             u.LowPart = startFt.dwLowDateTime;
             u.HighPart = startFt.dwHighDateTime;
-            timer.endTimeUtc = u.QuadPart + (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
+            timer.endTimeUtc = u.QuadPart +
+                (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
         }
     }
 
@@ -350,10 +368,11 @@ bool Settings::SaveToRegistry() {
     success &= WriteDword(L"PeriodSec", m_periodSec);
     success &= WriteDword(L"VkKey", static_cast<DWORD>(m_vkKey));
     success &= WriteDword(L"KeepDisplayOn", m_keepDisplayOn ? 1 : 0);
+    success &= WriteDword(L"RespectBatterySaver", m_respectBatterySaver ? 1 : 0);
+    success &= WriteDword(L"AllowDisplayOnBattery", m_allowDisplayOnBattery ? 1 : 0);
     success &= WriteDword(L"ShowToggleNotifications", m_showToggleNotifications ? 1 : 0);
     success &= WriteDword(L"Enabled", m_enabled ? 1 : 0);
     success &= WriteString(L"Language", Localization::LanguageToString(GetLanguage()));
-
     success &= WriteString(L"Hotkey", HotkeyManager::HotkeyToRegistryString(m_hotkeyConfig).c_str());
 
     const TimerConfig& timer = m_timerConfig;
@@ -373,7 +392,6 @@ bool Settings::SaveToRegistry() {
         success = false;
     }
 
-    // Persist a deadline only for an active timed run.
     ULONGLONG endUtcToSave = 0;
     if (m_enabled && timer.mode != TimerMode::Indefinite) {
         endUtcToSave = timer.endTimeUtc;
