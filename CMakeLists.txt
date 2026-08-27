@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Everon VERSION 2.7.0 LANGUAGES CXX RC)
+project(Everon VERSION 2.8.0 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "Everon is a native Windows application and can only be built on Windows.")
@@ -17,6 +17,7 @@ set(EVERON_SOURCES
     src/HotkeyManager.cpp
     src/Localization.cpp
     src/PowerManager.cpp
+    src/QuickTimerDialog.cpp
     src/Settings.cpp
     src/SettingsDialog.cpp
     src/TimerMode.cpp
@@ -101,4 +102,14 @@ if(BUILD_TESTING)
         target_link_options(PowerManagerTests PRIVATE /guard:cf /CETCOMPAT)
     endif()
     add_test(NAME PowerManagerTests COMMAND PowerManagerTests)
+
+    add_executable(PowerPolicyTests
+        tests/PowerPolicyTests.cpp
+    )
+    target_include_directories(PowerPolicyTests PRIVATE src)
+    if(MSVC)
+        target_compile_options(PowerPolicyTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        target_link_options(PowerPolicyTests PRIVATE /guard:cf /CETCOMPAT)
+    endif()
+    add_test(NAME PowerPolicyTests COMMAND PowerPolicyTests)
 endif()
