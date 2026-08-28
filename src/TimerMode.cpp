@@ -50,7 +50,7 @@ static inline WORD DaysInMonth(WORD year, WORD month) noexcept {
 }
 
 static inline void AddDaysLocal(SYSTEMTIME& st, int days) noexcept {
-    while (days-- > 0) {
+    for (int remaining = days; remaining > 0; --remaining) {
         const WORD dim = DaysInMonth(st.wYear, st.wMonth);
         if (st.wDay < dim) {
             st.wDay = static_cast<WORD>(st.wDay + 1);
@@ -135,11 +135,13 @@ ULONGLONG ComputeNextUntilUtcForTesting(const SYSTEMTIME& nowLocal,
 #endif
 
 static ULONGLONG ResolveTargetUtc(const TimerConfig& timer) noexcept {
+    using enum TimerMode;
+
     if (timer.endTimeUtc != 0) {
         return timer.endTimeUtc;
     }
 
-    if (timer.mode == TimerMode::Duration) {
+    if (timer.mode == Duration) {
         if (timer.startTime.wYear == 0) {
             const ULONGLONG nowUtc = NowUtcFileTimeUll();
             return nowUtc + (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
@@ -160,7 +162,7 @@ static ULONGLONG ResolveTargetUtc(const TimerConfig& timer) noexcept {
         return startUtcU + (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
     }
 
-    if (timer.mode == TimerMode::UntilTime) {
+    if (timer.mode == UntilTime) {
         return ComputeNextUntilUtc(timer.untilTime);
     }
 
@@ -184,12 +186,14 @@ static DWORD RemainingFromUtc(const TimerConfig& timer) noexcept {
 }
 
 bool TimerConfig::IsValid() const noexcept {
+    using enum TimerMode;
+
     switch (mode) {
-        case TimerMode::Indefinite:
+        case Indefinite:
             return true;
-        case TimerMode::Duration:
+        case Duration:
             return durationMinutes >= MIN_DURATION_MIN && durationMinutes <= MAX_DURATION_MIN;
-        case TimerMode::UntilTime:
+        case UntilTime:
             return untilTime.wHour < 24 && untilTime.wMinute < 60;
         default:
             return false;
@@ -197,13 +201,15 @@ bool TimerConfig::IsValid() const noexcept {
 }
 
 void TimerConfig::ResetStartTime() noexcept {
-    if (mode == TimerMode::Duration) {
+    using enum TimerMode;
+
+    if (mode == Duration) {
         GetLocalTime(&startTime);
         const ULONGLONG durationMs = static_cast<ULONGLONG>(durationMinutes) * 60ULL * 1000ULL;
         const ULONGLONG nowUtc = NowUtcFileTimeUll();
         endTimeUtc = nowUtc + (durationMs * 10000ULL);
         monotonicDeadlineMs = GetTickCount64() + durationMs;
-    } else if (mode == TimerMode::UntilTime) {
+    } else if (mode == UntilTime) {
         GetLocalTime(&startTime);
         endTimeUtc = ComputeNextUntilUtc(untilTime);
         monotonicDeadlineMs = 0;
