@@ -38,6 +38,13 @@ function(everon_configure_target target)
     endif()
 endfunction()
 
+function(everon_configure_test_target target)
+    everon_configure_target(${target})
+    if(MSVC)
+        target_link_options(${target} PRIVATE /PROFILE)
+    endif()
+endfunction()
+
 set(EVERON_SOURCES
     src/main.cpp
     src/App.cpp
@@ -77,7 +84,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(TimerModeTests PRIVATE src)
     target_compile_definitions(TimerModeTests PRIVATE EVERON_TESTING)
-    everon_configure_target(TimerModeTests)
+    everon_configure_test_target(TimerModeTests)
     add_test(NAME TimerModeTests COMMAND TimerModeTests)
 
     add_executable(HotkeyManagerTests
@@ -86,7 +93,7 @@ if(BUILD_TESTING)
         src/Utils.cpp
     )
     target_include_directories(HotkeyManagerTests PRIVATE src)
-    everon_configure_target(HotkeyManagerTests)
+    everon_configure_test_target(HotkeyManagerTests)
     add_test(NAME HotkeyManagerTests COMMAND HotkeyManagerTests)
 
     add_executable(SettingsTests
@@ -100,7 +107,7 @@ if(BUILD_TESTING)
     target_include_directories(SettingsTests PRIVATE src)
     target_compile_definitions(SettingsTests PRIVATE EVERON_TESTING)
     target_link_libraries(SettingsTests PRIVATE advapi32)
-    everon_configure_target(SettingsTests)
+    everon_configure_test_target(SettingsTests)
     add_test(NAME SettingsTests COMMAND SettingsTests)
 
     add_executable(PowerManagerTests
@@ -109,14 +116,14 @@ if(BUILD_TESTING)
         src/Utils.cpp
     )
     target_include_directories(PowerManagerTests PRIVATE src)
-    everon_configure_target(PowerManagerTests)
+    everon_configure_test_target(PowerManagerTests)
     add_test(NAME PowerManagerTests COMMAND PowerManagerTests)
 
     add_executable(PowerPolicyTests
         tests/PowerPolicyTests.cpp
     )
     target_include_directories(PowerPolicyTests PRIVATE src)
-    everon_configure_target(PowerPolicyTests)
+    everon_configure_test_target(PowerPolicyTests)
     add_test(NAME PowerPolicyTests COMMAND PowerPolicyTests)
 
     add_executable(LocalizationTests
@@ -124,14 +131,14 @@ if(BUILD_TESTING)
         src/Localization.cpp
     )
     target_include_directories(LocalizationTests PRIVATE src)
-    everon_configure_target(LocalizationTests)
+    everon_configure_test_target(LocalizationTests)
     add_test(NAME LocalizationTests COMMAND LocalizationTests)
 
     add_executable(OwnershipTests
         tests/OwnershipTests.cpp
     )
     target_include_directories(OwnershipTests PRIVATE src)
-    everon_configure_target(OwnershipTests)
+    everon_configure_test_target(OwnershipTests)
     add_test(NAME OwnershipTests COMMAND OwnershipTests)
 
     add_executable(SingleInstanceTests
@@ -140,6 +147,6 @@ if(BUILD_TESTING)
     )
     target_include_directories(SingleInstanceTests PRIVATE src)
     target_link_libraries(SingleInstanceTests PRIVATE shell32)
-    everon_configure_target(SingleInstanceTests)
+    everon_configure_test_target(SingleInstanceTests)
     add_test(NAME SingleInstanceTests COMMAND SingleInstanceTests)
 endif()
