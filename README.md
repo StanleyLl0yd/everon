@@ -8,7 +8,7 @@
 
 A lightweight native Windows tray utility that prevents automatic system sleep while it is enabled. Everon runs without a main window and is controlled from the system tray.
 
-**Source version:** 2.8.0 · **Platform:** Windows x64 · **Language:** C++17
+**Source version:** 2.8.0 · **Platform:** Windows x64 · **Language:** C++20
 
 [GitHub Releases](https://github.com/StanleyLl0yd/everon/releases)
 
@@ -74,7 +74,7 @@ build\Release\Everon.exe
 
 CI covers the Windows x64 Release build, timer behavior, hotkey parsing/serialization, Settings state, PowerManager behavior, battery-policy decisions, and SHA-256 generation for the build artifact.
 
-Main stack: C++17, native Win32 API, CMake, and CTest.
+Main stack: C++20, native Win32 API, CMake, and CTest.
 
 ## Verify a release checksum
 
