@@ -130,6 +130,40 @@ void App::DisableAfterTimerFailure() {
     RefreshStatus();
 }
 
+void App::NotifyKeyPressFailure() {
+    if (m_keyPressFailureNotified || !m_trayIcon) {
+        return;
+    }
+
+    auto& loc = Localization::Instance();
+    const wchar_t* message = nullptr;
+    switch (loc.GetLanguage()) {
+        case Language::Russian:
+            message = L"Не удалось отправить периодическое нажатие клавиши. Everon продолжит предотвращать сон без эмуляции клавиш.";
+            break;
+        case Language::French:
+            message = L"L'envoi périodique de la touche a échoué. Everon continuera d'empêcher la veille sans frappe synthétique.";
+            break;
+        case Language::German:
+            message = L"Das periodische Tastensignal ist fehlgeschlagen. Everon verhindert den Ruhezustand weiterhin ohne simulierte Tastendrücke.";
+            break;
+        case Language::Italian:
+            message = L"L'invio periodico del tasto non è riuscito. Everon continuerà a impedire la sospensione senza pressioni simulate.";
+            break;
+        case Language::Spanish:
+            message = L"Falló el envío periódico de la tecla. Everon seguirá evitando la suspensión sin pulsaciones simuladas.";
+            break;
+        case Language::English:
+        case Language::Count:
+        default:
+            message = L"Periodic key input failed. Everon will keep preventing sleep without synthetic key presses.";
+            break;
+    }
+
+    m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle), message, NIIF_WARNING);
+    m_keyPressFailureNotified = true;
+}
+
 int App::Run() {
     INITCOMMONCONTROLSEX icc = {};
     icc.dwSize = sizeof(icc);
@@ -256,7 +290,9 @@ bool App::OnCreate() {
         StartTimer();
     }
 
-    Utils::SetTimerChecked(m_window, TIMER_ID_STATUS_REFRESH, STATUS_REFRESH_INTERVAL_MS);
+    if (Utils::SetTimerChecked(m_window, TIMER_ID_STATUS_REFRESH, STATUS_REFRESH_INTERVAL_MS) == 0) {
+        Utils::DebugLog(L"[Everon] Status refresh timer is unavailable\n");
+    }
     RefreshStatus();
     return true;
 }
@@ -304,7 +340,11 @@ void App::OnTimer(UINT_PTR timerId) {
         }
         const WORD vk = m_settings.GetVirtualKey();
         if (vk != 0) {
-            m_powerManager.SendKeyPress(vk);
+            if (m_powerManager.SendKeyPress(vk)) {
+                m_keyPressFailureNotified = false;
+            } else {
+                NotifyKeyPressFailure();
+            }
         }
         return;
     }
@@ -476,25 +516,50 @@ void App::ShowSettings() {
 
     if (!accepted) {
         Localization::Instance().SetLanguage(original.GetLanguage());
-        Settings::SetAutoStartEnabled(originalAutoStart);
+        return;
+    }
+
+    TimerConfig timer = staged.GetTimerConfig();
+    if (staged.IsEnabled() && timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
+        timer.ResetStartTime();
+        staged.SetTimerConfig(timer);
+    }
+
+    const bool autoStartChanged = staged.GetAutoStart() != originalAutoStart;
+    if (autoStartChanged && !Settings::SetAutoStartEnabled(staged.GetAutoStart())) {
+        Localization::Instance().SetLanguage(original.GetLanguage());
+        auto& loc = Localization::Instance();
+        MessageBoxW(m_window,
+                    loc.GetString(StringID::ErrorAutoStart),
+                    loc.GetString(StringID::ErrorTitle),
+                    MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    if (!staged.SaveToRegistry()) {
+        if (autoStartChanged && !Settings::SetAutoStartEnabled(originalAutoStart)) {
+            Utils::DebugLog(L"[Everon] Failed to roll back autostart\n");
+        }
         Settings rollback = original;
         rollback.SetDirty(true);
-        rollback.SaveToRegistry();
+        if (!rollback.SaveToRegistry()) {
+            Utils::DebugLog(L"[Everon] Failed to roll back settings registry state\n");
+        }
+        Localization::Instance().SetLanguage(original.GetLanguage());
+        auto& loc = Localization::Instance();
+        MessageBoxW(m_window,
+                    loc.GetString(StringID::ErrorSaveSettings),
+                    loc.GetString(StringID::ErrorTitle),
+                    MB_OK | MB_ICONWARNING);
         return;
     }
 
     m_settings = staged;
     if (m_settings.IsEnabled()) {
-        TimerConfig timer = m_settings.GetTimerConfig();
-        if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
-            timer.ResetStartTime();
-            m_settings.SetTimerConfig(timer);
-            SaveSettings();
-        }
-
         UpdatePowerState();
         StartTimer();
     } else {
+        StopTimer();
         UpdatePowerState();
     }
 
@@ -538,8 +603,10 @@ void App::StartTimer() {
     const WORD vk = m_settings.GetVirtualKey();
     const UINT periodSec = m_settings.GetPeriodSec();
     if (vk != 0 && periodSec > 0) {
-        const UINT intervalMs = periodSec * 1000;
-        Utils::SetTimerChecked(m_window, TIMER_ID_KEYPRESS, intervalMs);
+        const UINT intervalMs = periodSec * 1000U;
+        if (Utils::SetTimerChecked(m_window, TIMER_ID_KEYPRESS, intervalMs) == 0) {
+            NotifyKeyPressFailure();
+        }
     }
 
     TimerConfig timer = m_settings.GetTimerConfig();
@@ -577,6 +644,7 @@ void App::StopTimer() {
     KillTimer(m_window, TIMER_ID_KEYPRESS);
     KillTimer(m_window, TIMER_ID_EXPIRE);
     m_expireTimerArmed = false;
+    m_keyPressFailureNotified = false;
 }
 
 void App::RefreshStatus() {
