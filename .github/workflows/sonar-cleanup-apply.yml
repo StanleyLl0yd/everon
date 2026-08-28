@@ -1,0 +1,59 @@
+name: Apply Sonar cleanup
+
+on:
+  push:
+    branches:
+      - sonar-main-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          ref: sonar-main-cleanup
+
+      - name: Apply mechanical cleanup
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = list(Path('src').glob('**/*.[ch]pp')) + list(Path('src').glob('**/*.h')) + list(Path('tests').glob('**/*.cpp'))
+          replacements = {
+              '#include <Windows.h>': '#include <windows.h>',
+              '#include <CommCtrl.h>': '#include <commctrl.h>',
+              '#include <ShObjIdl.h>': '#include <shobjidl.h>',
+              'auto& loc = Localization::Instance();': 'const auto& loc = Localization::Instance();',
+          }
+
+          for path in paths:
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+
+              if 'int g_failures = 0;' in text:
+                  text = text.replace(
+                      'int g_failures = 0;',
+                      'int& Failures() {\n    static int failures = 0;\n    return failures;\n}'
+                  )
+                  text = text.replace('g_failures', 'Failures()')
+
+              if text != original:
+                  path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+          if git diff --quiet; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          git commit -m "Apply mechanical C++20 cleanup"
+          git push origin HEAD:sonar-main-cleanup
