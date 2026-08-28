@@ -40,7 +40,7 @@ INT_PTR CALLBACK DurationDialogProc(HWND dialog, UINT message, WPARAM wParam, LP
     if (message == WM_INITDIALOG) {
         state = reinterpret_cast<DurationDialogState*>(lParam);
         SetWindowLongPtrW(dialog, GWLP_USERDATA, lParam);
-        const const const const const const auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         SetWindowTextW(dialog, loc.GetString(StringID::QuickDurationTitle));
         SetDlgItemTextW(dialog, IDC_QUICK_DURATION_LABEL, loc.GetString(StringID::QuickDurationLabel));
         SetDlgItemTextW(dialog, IDOK, loc.GetString(StringID::ButtonOK));
@@ -60,7 +60,7 @@ INT_PTR CALLBACK DurationDialogProc(HWND dialog, UINT message, WPARAM wParam, LP
             const UINT minutes = GetDlgItemInt(dialog, IDC_QUICK_DURATION_EDIT, &translated, FALSE);
             if (!translated || minutes < TimerConfig::MIN_DURATION_MIN ||
                 minutes > TimerConfig::MAX_DURATION_MIN) {
-                const const const const const const auto& loc = Localization::Instance();
+                const auto& loc = Localization::Instance();
                 MessageBoxW(dialog,
                             loc.GetString(StringID::ErrorInvalidTimerDuration),
                             loc.GetString(StringID::ErrorInvalidTimerTitle),
@@ -87,7 +87,7 @@ INT_PTR CALLBACK UntilDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARA
     if (message == WM_INITDIALOG) {
         state = reinterpret_cast<UntilDialogState*>(lParam);
         SetWindowLongPtrW(dialog, GWLP_USERDATA, lParam);
-        const const const const const const auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         SetWindowTextW(dialog, loc.GetString(StringID::QuickUntilTitle));
         SetDlgItemTextW(dialog, IDC_QUICK_UNTIL_LABEL, loc.GetString(StringID::QuickUntilLabel));
         SetDlgItemTextW(dialog, IDOK, loc.GetString(StringID::ButtonOK));
