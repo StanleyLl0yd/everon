@@ -12,8 +12,7 @@ int main() {
         L"Local\\Everon_Test_Mutex_{}", GetCurrentProcessId());
 
     Utils::SingleInstanceGuard first(mutexName.c_str());
-    const bool firstOwnsMutex = first.IsFirstInstance();
-    if (!firstOwnsMutex) {
+    if (const bool firstOwnsMutex = first.IsFirstInstance(); !firstOwnsMutex) {
         std::cerr << "FAILED: first guard should own a fresh mutex\n";
         return 1;
     }
