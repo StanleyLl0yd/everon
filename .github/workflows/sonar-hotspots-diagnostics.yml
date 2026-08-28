@@ -1,0 +1,25 @@
+name: Sonar hotspot diagnostics
+
+on:
+  push:
+    branches:
+      - codex/security-hotspots
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch Sonar security hotspots
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --get \
+            'https://sonarcloud.io/api/hotspots/search' \
+            --data-urlencode 'projectKey=StanleyLl0yd_everon' \
+            --data-urlencode 'branch=main' \
+            --data-urlencode 'status=TO_REVIEW' \
+            --data-urlencode 'ps=100' \
+            | jq '{paging, hotspots: [.hotspots[] | {key, component, line, message, vulnerabilityProbability, securityCategory, status}]}'
