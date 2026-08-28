@@ -9,10 +9,14 @@
 namespace Everon::Utils {
 
 template <typename... Args>
-void DebugLog(std::wformat_string<Args...> format, Args&&... args) {
+void DebugLog(std::wformat_string<Args...> format, Args&&... args) noexcept {
 #ifdef _DEBUG
-    const auto message = std::format(format, std::forward<Args>(args)...);
-    OutputDebugStringW(message.c_str());
+    try {
+        const auto message = std::format(format, std::forward<Args>(args)...);
+        OutputDebugStringW(message.c_str());
+    } catch (...) {
+        OutputDebugStringW(L"[Everon] Debug logging failed.\n");
+    }
 #else
     (void)format;
     ((void)args, ...);
