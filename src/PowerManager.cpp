@@ -43,9 +43,9 @@ bool PowerManager::AllowSleep() {
     return true;
 }
 
-void PowerManager::SendKeyPress(WORD virtualKey) const {
+bool PowerManager::SendKeyPress(WORD virtualKey) const {
     if (virtualKey == 0) {
-        return;
+        return true;
     }
 
     std::array<INPUT, 2> inputs{};
@@ -59,7 +59,9 @@ void PowerManager::SendKeyPress(WORD virtualKey) const {
     const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
     if (sent != inputs.size()) {
         Utils::DebugLog(L"[Everon] SendInput failed/sent %u: %lu\n", sent, GetLastError());
+        return false;
     }
+    return true;
 }
 
 }
