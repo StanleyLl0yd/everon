@@ -1,4 +1,4 @@
-#include <windows.h>
+#include <Windows.h>
 #include <iostream>
 #include "TimerMode.h"
 
@@ -51,11 +51,9 @@ bool RejectLocalToUtc(const SYSTEMTIME&, SYSTEMTIME&) noexcept {
 }
 
 SYSTEMTIME FileTimeUllToSystemTime(ULONGLONG value) {
-    ULARGE_INTEGER integer{};
-    integer.QuadPart = value;
     FILETIME fileTime{};
-    fileTime.dwLowDateTime = integer.LowPart;
-    fileTime.dwHighDateTime = integer.HighPart;
+    fileTime.dwLowDateTime = static_cast<DWORD>(value & 0xFFFFFFFFULL);
+    fileTime.dwHighDateTime = static_cast<DWORD>(value >> 32U);
     SYSTEMTIME result{};
     FileTimeToSystemTime(&fileTime, &result);
     return result;
