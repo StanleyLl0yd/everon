@@ -17,15 +17,7 @@ struct HotkeyConfig {
                (modifiers & ~kAllowedModifiers) == 0;
     }
 
-    friend bool operator==(const HotkeyConfig& lhs, const HotkeyConfig& rhs) {
-        return lhs.enabled == rhs.enabled &&
-               lhs.modifiers == rhs.modifiers &&
-               lhs.virtualKey == rhs.virtualKey;
-    }
-
-    friend bool operator!=(const HotkeyConfig& lhs, const HotkeyConfig& rhs) {
-        return !(lhs == rhs);
-    }
+    friend bool operator==(const HotkeyConfig&, const HotkeyConfig&) = default;
 };
 
 class HotkeyManager {
