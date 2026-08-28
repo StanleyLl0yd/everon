@@ -1,0 +1,67 @@
+name: Localization cleanup
+
+on:
+  push:
+    branches:
+      - sonar-main-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          ref: sonar-main-cleanup
+
+      - name: Modernize localization tables
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/Localization.cpp')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('#include "Version.h"\n', '#include "Version.h"\n#include <array>\n')
+          text = text.replace(
+              'static const wchar_t* const kLanguageNames[kLangCount] = {',
+              'constexpr std::array<const wchar_t*, kLangCount> kLanguageNames = {'
+          )
+          text = text.replace(
+              'static const wchar_t* const kLanguageCodes[kLangCount] = {',
+              'constexpr std::array<const wchar_t*, kLangCount> kLanguageCodes = {'
+          )
+          text = text.replace(
+              'static const wchar_t* const kStrings[kStrCount][kLangCount] = {',
+              'constexpr std::array<std::array<const wchar_t*, kLangCount>, kStrCount> kStrings = {{'
+          )
+          text = text.replace(
+              '\n};\n\n}\n\nLocalization& Localization::Instance()',
+              '\n}};\n\n}\n\nLocalization& Localization::Instance()',
+              1
+          )
+          text = text.replace('const int sid = static_cast<int>(id);', 'const auto sid = static_cast<int>(id);')
+          text = text.replace('int lang = static_cast<int>(m_currentLanguage);', 'auto lang = static_cast<int>(m_currentLanguage);')
+          text = text.replace('const wchar_t* s = kStrings[sid][lang];', 'const auto* s = kStrings[sid][lang];')
+          text = text.replace('const int l = static_cast<int>(lang);', 'const auto l = static_cast<int>(lang);')
+          text = text.replace(
+              'Language Localization::DetectSystemLanguage() {\n    LANGID langId = GetUserDefaultUILanguage();\n    WORD primaryLang = PRIMARYLANGID(langId);\n\n    switch (primaryLang) {\n        case LANG_RUSSIAN: return Language::Russian;\n        case LANG_FRENCH: return Language::French;\n        case LANG_GERMAN: return Language::German;\n        case LANG_ITALIAN: return Language::Italian;\n        case LANG_SPANISH: return Language::Spanish;\n        default: return Language::English;\n    }\n}',
+              'Language Localization::DetectSystemLanguage() {\n    using enum Language;\n\n    const auto langId = GetUserDefaultUILanguage();\n    const auto primaryLang = PRIMARYLANGID(langId);\n\n    switch (primaryLang) {\n        case LANG_RUSSIAN: return Russian;\n        case LANG_FRENCH: return French;\n        case LANG_GERMAN: return German;\n        case LANG_ITALIAN: return Italian;\n        case LANG_SPANISH: return Spanish;\n        default: return English;\n    }\n}'
+          )
+          text = text.replace(
+              'Language Localization::StringToLanguage(const wchar_t* str) {\n    if (!str) {\n        return Language::English;\n    }\n\n    if (_wcsicmp(str, L"ru") == 0) return Language::Russian;\n    if (_wcsicmp(str, L"fr") == 0) return Language::French;\n    if (_wcsicmp(str, L"de") == 0) return Language::German;\n    if (_wcsicmp(str, L"it") == 0) return Language::Italian;\n    if (_wcsicmp(str, L"es") == 0) return Language::Spanish;\n    return Language::English;\n}',
+              'Language Localization::StringToLanguage(const wchar_t* str) {\n    using enum Language;\n\n    if (!str) {\n        return English;\n    }\n\n    if (_wcsicmp(str, L"ru") == 0) return Russian;\n    if (_wcsicmp(str, L"fr") == 0) return French;\n    if (_wcsicmp(str, L"de") == 0) return German;\n    if (_wcsicmp(str, L"it") == 0) return Italian;\n    if (_wcsicmp(str, L"es") == 0) return Spanish;\n    return English;\n}'
+          )
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+          git rm -f .github/workflows/localization-cleanup.yml
+          git rm -f .github/workflows/repair-sonar-cleanup.yml 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Localization.cpp
+          git commit -m "Modernize localization tables"
+          git push origin HEAD:sonar-main-cleanup
