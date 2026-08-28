@@ -128,8 +128,8 @@ std::wstring GetKeyName(UINT virtualKey) {
     }
 
     const auto scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC);
-    std::array<wchar_t, 64> buffer{};
-    if (GetKeyNameTextW(scanCode << 16, buffer.data(), static_cast<int>(buffer.size())) > 0) {
+    if (std::array<wchar_t, 64> buffer{};
+        GetKeyNameTextW(scanCode << 16, buffer.data(), static_cast<int>(buffer.size())) > 0) {
         return buffer.data();
     }
 
