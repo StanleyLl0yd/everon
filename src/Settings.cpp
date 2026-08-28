@@ -345,11 +345,10 @@ bool Settings::SaveToRegistry() {
             Utils::DebugLog(L"[Everon][Reg] Refusing null string value '%s'\n", name);
             return false;
         }
-        const std::wstring stored(value);
+        const auto stored = std::wstring(value);
         const DWORD size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
-        const LONG res = RegSetValueExW(hKey, name, 0, REG_SZ,
-                                        reinterpret_cast<const BYTE*>(stored.c_str()),
-                                        size);
+        const LONG res = RegSetKeyValueW(hKey, nullptr, name, REG_SZ,
+                                         stored.c_str(), size);
         if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_SZ)")) {
             Utils::DebugLog(L"[Everon][Reg] Failed to write string value '%s'\n", name);
             return false;
