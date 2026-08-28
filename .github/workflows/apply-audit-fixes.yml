@@ -1,0 +1,196 @@
+name: Apply audit fixes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/audit-fixes
+          fetch-depth: 0
+
+      - name: Apply fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          def read(path):
+              return Path(path).read_text(encoding="utf-8")
+
+          def write(path, text):
+              Path(path).parent.mkdir(parents=True, exist_ok=True)
+              Path(path).write_text(text, encoding="utf-8", newline="\n")
+
+          def replace_once(text, old, new, path):
+              if text.count(old) != 1:
+                  raise RuntimeError(f"Expected one match in {path}: {old[:80]!r}")
+              return text.replace(old, new, 1)
+
+          path = ".github/workflows/release.yml"
+          text = read(path)
+          text = replace_once(text, 'on:\n  push:\n    tags:\n      - "v*"\n  workflow_dispatch:\n', 'on:\n  workflow_dispatch:\n', path)
+          text = replace_once(text, '''          if ("${{ github.ref_type }}" -eq "tag" -and "${{ github.ref_name }}" -ne $tag) {\n            throw "Tag ${{ github.ref_name }} does not match Version.h ($tag)"\n          }\n\n''', '', path)
+          write(path, text)
+
+          write("src/Version.h", '''#pragma once\n\n#define VER_MAJOR 2\n#define VER_MINOR 8\n#define VER_PATCH 0\n#define VER_BUILD 0\n\n#define EVERON_STRINGIZE_INNER(value) #value\n#define EVERON_STRINGIZE(value) EVERON_STRINGIZE_INNER(value)\n#define EVERON_WIDEN_INNER(value) L##value\n#define EVERON_WIDEN(value) EVERON_WIDEN_INNER(value)\n\n#define VER_FILEVERSION VER_MAJOR,VER_MINOR,VER_PATCH,VER_BUILD\n#define VER_PRODUCTVERSION VER_FILEVERSION\n#define VER_FILEVERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR) "." EVERON_STRINGIZE(VER_PATCH) "." EVERON_STRINGIZE(VER_BUILD)\n#define VER_PRODUCTVERSION_STR VER_FILEVERSION_STR\n\n#if VER_PATCH == 0\n#define VER_VERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR)\n#else\n#define VER_VERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR) "." EVERON_STRINGIZE(VER_PATCH)\n#endif\n\n#define VER_VERSION_STR_W EVERON_WIDEN(VER_VERSION_STR)\n#define VER_FILEVERSION_STR_W EVERON_WIDEN(VER_FILEVERSION_STR)\n''')
+
+          path = "CMakeLists.txt"
+          text = read(path)
+          text = replace_once(text, 'project(Everon VERSION 2.8.0 LANGUAGES CXX RC)\n', '''file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/Version.h" EVERON_VERSION_DEFINES\n    REGEX "^#define VER_(MAJOR|MINOR|PATCH) [0-9]+$")\nforeach(line IN LISTS EVERON_VERSION_DEFINES)\n    if(line MATCHES "^#define VER_MAJOR ([0-9]+)$")\n        set(EVERON_VERSION_MAJOR "${CMAKE_MATCH_1}")\n    elseif(line MATCHES "^#define VER_MINOR ([0-9]+)$")\n        set(EVERON_VERSION_MINOR "${CMAKE_MATCH_1}")\n    elseif(line MATCHES "^#define VER_PATCH ([0-9]+)$")\n        set(EVERON_VERSION_PATCH "${CMAKE_MATCH_1}")\n    endif()\nendforeach()\nif(NOT DEFINED EVERON_VERSION_MAJOR OR NOT DEFINED EVERON_VERSION_MINOR OR NOT DEFINED EVERON_VERSION_PATCH)\n    message(FATAL_ERROR "Unable to read Everon version from src/Version.h")\nendif()\n\nproject(Everon VERSION "${EVERON_VERSION_MAJOR}.${EVERON_VERSION_MINOR}.${EVERON_VERSION_PATCH}" LANGUAGES CXX RC)\n''', path)
+          write(path, text)
+
+          write("scripts/verify-version.ps1", '''$ErrorActionPreference = "Stop"\n\n$versionHeader = Get-Content "src/Version.h" -Raw\nfunction Read-VersionDefine([string]$name) {\n    $match = [regex]::Match($versionHeader, "(?m)^#define\\s+$name\\s+(\\d+)$")\n    if (-not $match.Success) { throw "Unable to read $name from src/Version.h" }\n    return [int]$match.Groups[1].Value\n}\n\n$major = Read-VersionDefine "VER_MAJOR"\n$minor = Read-VersionDefine "VER_MINOR"\n$patch = Read-VersionDefine "VER_PATCH"\n$sourceVersion = "$major.$minor.$patch"\n$releaseVersion = if ($patch -eq 0) { "$major.$minor" } else { $sourceVersion }\n\n$cmake = Get-Content "CMakeLists.txt" -Raw\nif ($cmake -match 'project\\(Everon VERSION [0-9]') {\n    throw "CMakeLists.txt must derive the project version from src/Version.h"\n}\n\nforeach ($readme in @("README.md", "README.ru.md")) {\n    $content = Get-Content $readme -Raw\n    if ($content -notmatch [regex]::Escape($sourceVersion)) {\n        throw "$readme does not contain source version $sourceVersion"\n    }\n}\n\nforeach ($changelog in @("CHANGELOG.md", "CHANGELOG.ru.md")) {\n    $content = Get-Content $changelog -Raw\n    if ($content -notmatch "(?m)^##\\s+$([regex]::Escape($sourceVersion))\\b") {\n        throw "$changelog does not contain version $sourceVersion"\n    }\n}\n\nWrite-Host "Version consistency verified: source=$sourceVersion release=$releaseVersion"\n''')
+
+          for path in [".github/workflows/build.yml", ".github/workflows/release.yml"]:
+              text = read(path)
+              marker = "      - name: Configure\n"
+              step = "      - name: Verify version metadata\n        shell: pwsh\n        run: ./scripts/verify-version.ps1\n\n"
+              text = replace_once(text, marker, step + marker, path)
+              write(path, text)
+
+          write(".github/dependabot.yml", '''version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n    schedule:\n      interval: monthly\n    labels:\n      - dependencies\n''')
+
+          path = "src/PowerPolicy.h"
+          text = read(path)
+          text = replace_once(text, '''struct PowerContext {\n    bool onBattery = false;\n    bool batterySaver = false;\n};''', '''struct PowerContext {\n    bool statusKnown = true;\n    bool onBattery = false;\n    bool batterySaver = false;\n};''', path)
+          text = replace_once(text, '    if (respectBatterySaver && context.batterySaver) {', '    if (context.statusKnown && respectBatterySaver && context.batterySaver) {', path)
+          text = replace_once(text, '    decision.keepDisplayOn = keepDisplayOn && (!context.onBattery || allowDisplayOnBattery);', '    decision.keepDisplayOn = keepDisplayOn && (!context.statusKnown || !context.onBattery || allowDisplayOnBattery);', path)
+          write(path, text)
+
+          path = "tests/PowerPolicyTests.cpp"
+          text = read(path)
+          insert = '''\n    PowerContext unknown{};\n    unknown.statusKnown = false;\n    unknown.onBattery = true;\n    unknown.batterySaver = true;\n    decision = EvaluatePowerPolicy(true, true, true, false, unknown);\n    Expect(decision.preventSystemSleep, "unknown power status should not pause keep-awake");\n    Expect(decision.keepDisplayOn, "unknown power status should preserve configured display keep-awake");\n    Expect(!decision.pausedByBatterySaver, "unknown power status should not be treated as Battery Saver");\n'''
+          text = replace_once(text, '\n    decision = EvaluatePowerPolicy(false, true, true, true, saver);', insert + '\n    decision = EvaluatePowerPolicy(false, true, true, true, saver);', path)
+          write(path, text)
+
+          path = "src/TimerMode.cpp"
+          text = read(path)
+          text = replace_once(text, '''    if (!ok) {\n        // Fall back to treating local time as UTC if conversion still fails.\n        targetUtc = targetLocal;\n    }\n\n    return UtcSystemTimeToFileTimeUll(targetUtc);''', '''    if (!ok) {\n        return 0;\n    }\n\n    return UtcSystemTimeToFileTimeUll(targetUtc);''', path)
+          text = replace_once(text, '''        SYSTEMTIME startUtc = {};\n        if (!LocalToUtcSystemTime(timer.startTime, startUtc)) {\n            startUtc = timer.startTime;\n        }\n\n        const ULONGLONG startUtcU = UtcSystemTimeToFileTimeUll(startUtc);''', '''        SYSTEMTIME startUtc = {};\n        if (!LocalToUtcSystemTime(timer.startTime, startUtc)) {\n            const ULONGLONG nowUtc = NowUtcFileTimeUll();\n            return nowUtc + (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);\n        }\n\n        const ULONGLONG startUtcU = UtcSystemTimeToFileTimeUll(startUtc);''', path)
+          write(path, text)
+
+          path = "src/Settings.cpp"
+          text = read(path)
+          text = replace_once(text, '''        SYSTEMTIME startUtc = {};\n        if (!TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {\n            startUtc = timer.startTime;\n        }\n        FILETIME startFt = {};\n        if (SystemTimeToFileTime(&startUtc, &startFt)) {''', '''        SYSTEMTIME startUtc = {};\n        if (TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {\n            FILETIME startFt = {};\n            if (SystemTimeToFileTime(&startUtc, &startFt)) {''', path)
+          text = replace_once(text, '''            timer.endTimeUtc = u.QuadPart +\n                (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);\n        }\n    }''', '''                timer.endTimeUtc = u.QuadPart +\n                    (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);\n            }\n        }\n    }''', path)
+          pattern = re.compile(r'bool Settings::IsAutoStartEnabled\(\) \{.*?\n\}\n\nbool Settings::SetAutoStartEnabled', re.S)
+          match = pattern.search(text)
+          if not match:
+              raise RuntimeError("Unable to locate Settings::IsAutoStartEnabled")
+          replacement = '''bool Settings::IsAutoStartEnabled() {\n    HKEY hKey = nullptr;\n    const LONG openRes = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, KEY_READ, &hKey);\n    if (openRes != ERROR_SUCCESS) {\n        if (openRes != ERROR_FILE_NOT_FOUND) {\n            Utils::CheckWinApiStatus(openRes, L"RegOpenKeyExW(HKCU\\\\Run)");\n        }\n        return false;\n    }\n\n    DWORD type = 0;\n    DWORD size = 0;\n    LONG result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type, nullptr, &size);\n    if (result != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ) || size < sizeof(wchar_t)) {\n        RegCloseKey(hKey);\n        if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {\n            Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\\\Run\\\\Everon)");\n        }\n        return false;\n    }\n\n    std::vector<wchar_t> value((size / sizeof(wchar_t)) + 1, L'\\0');\n    DWORD readSize = size;\n    result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,\n                              reinterpret_cast<LPBYTE>(value.data()), &readSize);\n    const LONG closeRes = RegCloseKey(hKey);\n    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\\\Run)");\n    if (result != ERROR_SUCCESS) {\n        Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\\\Run\\\\Everon)");\n        return false;\n    }\n    value.back() = L'\\0';\n\n    std::wstring stored(value.data());\n    if (type == REG_EXPAND_SZ) {\n        const DWORD needed = ExpandEnvironmentStringsW(stored.c_str(), nullptr, 0);\n        if (needed != 0) {\n            std::vector<wchar_t> expanded(needed, L'\\0');\n            if (ExpandEnvironmentStringsW(stored.c_str(), expanded.data(), needed) != 0) {\n                stored.assign(expanded.data());\n            }\n        }\n    }\n\n    const std::wstring exePath = GetExecutablePath();\n    if (exePath.empty()) {\n        return false;\n    }\n\n    std::wstring first;\n    if (!stored.empty() && stored.front() == L'"') {\n        const size_t end = stored.find(L'"', 1);\n        if (end != std::wstring::npos) {\n            first = stored.substr(1, end - 1);\n        }\n    } else {\n        const size_t end = stored.find_first_of(L" \\t");\n        first = stored.substr(0, end);\n    }\n\n    return !first.empty() && _wcsicmp(first.c_str(), exePath.c_str()) == 0;\n}\n\nbool Settings::SetAutoStartEnabled'''
+          text = text[:match.start()] + replacement + text[match.end():]
+          write(path, text)
+
+          path = "src/Localization.h"
+          text = read(path)
+          text = replace_once(text, '    ErrorSaveSettings,\n    ErrorPowerState,', '    ErrorSaveSettings,\n    ErrorTimerState,\n    ErrorPowerState,', path)
+          write(path, text)
+
+          path = "src/Localization.cpp"
+          text = read(path)
+          needle = '    { L"Failed to save settings. Changes may be lost after restart.",'
+          pos = text.find(needle)
+          if pos < 0:
+              raise RuntimeError("Unable to locate save-settings localization row")
+          end = text.find('\n', pos)
+          row = '''\n    { L"Unable to arm the timer. Everon was disabled to avoid exceeding the selected time.", L"Не удалось запустить таймер. Everon отключён, чтобы не превысить выбранное время.", L"Impossible d'activer le minuteur. Everon a été désactivé pour ne pas dépasser la durée choisie.", L"Der Timer konnte nicht gestartet werden. Everon wurde deaktiviert, damit die gewählte Zeit nicht überschritten wird.", L"Impossibile avviare il timer. Everon è stato disattivato per non superare il tempo selezionato.", L"No se pudo iniciar el temporizador. Everon se desactivó para no superar el tiempo seleccionado." },'''
+          text = text[:end] + row + text[end:]
+          write(path, text)
+
+          path = "src/App.h"
+          text = read(path)
+          text = replace_once(text, '    void OnCreate();', '    bool OnCreate();', path)
+          text = replace_once(text, '    void ArmExpireTimer(const TimerConfig& timer);', '    bool ArmExpireTimer(const TimerConfig& timer);\n    bool ExpireTimerIfNeeded();\n    void DisableAfterTimerFailure();', path)
+          text = replace_once(text, '    bool m_pausedByBatterySaver = false;', '    bool m_pausedByBatterySaver = false;\n    bool m_expireTimerArmed = false;', path)
+          write(path, text)
+
+          path = "src/App.cpp"
+          text = read(path)
+          arm_pattern = re.compile(r'void App::ArmExpireTimer\(const TimerConfig& timer\) \{.*?\n\}\n\nint App::Run', re.S)
+          match = arm_pattern.search(text)
+          if not match:
+              raise RuntimeError("Unable to locate ArmExpireTimer")
+          arm = '''bool App::ArmExpireTimer(const TimerConfig& timer) {\n    const DWORD remainingMs = timer.GetRemainingMilliseconds();\n    if (remainingMs == 0) {\n        m_expireTimerArmed = false;\n        return ExpireTimerIfNeeded();\n    }\n\n    static constexpr DWORD kWinTimerMaxMs = 0x7FFFFFFFUL;\n    static constexpr UINT kLongRearmChunkMs = 10U * 60U * 1000U;\n\n    UINT intervalMs = static_cast<UINT>(remainingMs);\n    if (remainingMs > kWinTimerMaxMs) {\n        intervalMs = kLongRearmChunkMs;\n    }\n\n    m_expireTimerArmed = Utils::SetTimerChecked(\n        m_window, TIMER_ID_EXPIRE, intervalMs ? intervalMs : 1U) != 0;\n    if (!m_expireTimerArmed) {\n        DisableAfterTimerFailure();\n    }\n    return m_expireTimerArmed;\n}\n\nbool App::ExpireTimerIfNeeded() {\n    if (!m_settings.IsEnabled()) {\n        return false;\n    }\n\n    const TimerConfig timer = m_settings.GetTimerConfig();\n    if (timer.mode == TimerMode::Indefinite || !timer.IsExpired()) {\n        return false;\n    }\n\n    KillTimer(m_window, TIMER_ID_EXPIRE);\n    m_expireTimerArmed = false;\n    m_settings.SetEnabled(false);\n\n    TimerConfig cleared = timer;\n    cleared.endTimeUtc = 0;\n    cleared.startTime = {};\n    cleared.monotonicDeadlineMs = 0;\n    m_settings.SetTimerConfig(cleared);\n\n    SaveSettings();\n    StopTimer();\n    UpdatePowerState();\n    if (m_trayIcon) {\n        m_trayIcon->SetEnabled(false);\n        auto& loc = Localization::Instance();\n        m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),\n                                     loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);\n    }\n    RefreshStatus();\n    return true;\n}\n\nvoid App::DisableAfterTimerFailure() {\n    if (!m_settings.IsEnabled()) {\n        return;\n    }\n\n    m_settings.SetEnabled(false);\n    TimerConfig timer = m_settings.GetTimerConfig();\n    timer.startTime = {};\n    timer.endTimeUtc = 0;\n    timer.monotonicDeadlineMs = 0;\n    m_settings.SetTimerConfig(timer);\n    StopTimer();\n    UpdatePowerState();\n    SaveSettings();\n\n    if (m_trayIcon) {\n        m_trayIcon->SetEnabled(false);\n        auto& loc = Localization::Instance();\n        m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),\n                                     loc.GetString(StringID::ErrorTimerState), NIIF_WARNING);\n    }\n    RefreshStatus();\n}\n\nint App::Run'''
+          text = text[:match.start()] + arm + text[match.end():]
+          text = replace_once(text, '''        case WM_CREATE:\n            app->OnCreate();\n            return 0;''', '''        case WM_CREATE:\n            return app->OnCreate() ? 0 : -1;''', path)
+          text = replace_once(text, 'void App::OnCreate() {', 'bool App::OnCreate() {', path)
+          text = replace_once(text, '''        DestroyWindow(m_window);\n        return;\n    }''', '''        return false;\n    }''', path)
+          text = replace_once(text, '''    Utils::SetTimerChecked(m_window, TIMER_ID_STATUS_REFRESH, STATUS_REFRESH_INTERVAL_MS);\n    RefreshStatus();\n}''', '''    Utils::SetTimerChecked(m_window, TIMER_ID_STATUS_REFRESH, STATUS_REFRESH_INTERVAL_MS);\n    RefreshStatus();\n    return true;\n}''', path)
+          old_status = '''    if (timerId == TIMER_ID_STATUS_REFRESH) {\n        UpdatePowerState();\n        RefreshStatus();\n        return;\n    }'''
+          new_status = '''    if (timerId == TIMER_ID_STATUS_REFRESH) {\n        if (ExpireTimerIfNeeded()) {\n            return;\n        }\n        if (m_settings.IsEnabled()) {\n            const TimerConfig timer = m_settings.GetTimerConfig();\n            if (timer.mode != TimerMode::Indefinite && !m_expireTimerArmed) {\n                ArmExpireTimer(timer);\n            }\n        }\n        UpdatePowerState();\n        RefreshStatus();\n        return;\n    }'''
+          text = replace_once(text, old_status, new_status, path)
+          expire_pattern = re.compile(r'    if \(timerId == TIMER_ID_EXPIRE\) \{.*?\n    \}\n\}', re.S)
+          match = expire_pattern.search(text)
+          if not match:
+              raise RuntimeError("Unable to locate expiration branch")
+          expire = '''    if (timerId == TIMER_ID_EXPIRE) {\n        KillTimer(m_window, TIMER_ID_EXPIRE);\n        m_expireTimerArmed = false;\n        if (!ExpireTimerIfNeeded()) {\n            ArmExpireTimer(m_settings.GetTimerConfig());\n            RefreshStatus();\n        }\n    }\n}'''
+          text = text[:match.start()] + expire + text[match.end():]
+          show_pattern = re.compile(r'void App::ShowSettings\(\) \{.*?\n\}\n\nvoid App::ShowAbout', re.S)
+          match = show_pattern.search(text)
+          if not match:
+              raise RuntimeError("Unable to locate ShowSettings")
+          show = '''void App::ShowSettings() {\n    if (!m_settingsDialog || m_isSettingsDialogOpen) {\n        return;\n    }\n\n    const Settings original = m_settings;\n    Settings staged = m_settings;\n    const bool originalAutoStart = Settings::IsAutoStartEnabled();\n\n    m_isSettingsDialogOpen = true;\n    const bool accepted = m_settingsDialog->Show(m_window, staged);\n    m_isSettingsDialogOpen = false;\n\n    if (!accepted) {\n        Localization::Instance().SetLanguage(original.GetLanguage());\n        Settings::SetAutoStartEnabled(originalAutoStart);\n        Settings rollback = original;\n        rollback.SetDirty(true);\n        rollback.SaveToRegistry();\n        return;\n    }\n\n    m_settings = staged;\n    if (m_settings.IsEnabled()) {\n        TimerConfig timer = m_settings.GetTimerConfig();\n        if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {\n            timer.ResetStartTime();\n            m_settings.SetTimerConfig(timer);\n            SaveSettings();\n        }\n\n        UpdatePowerState();\n        StartTimer();\n    } else {\n        UpdatePowerState();\n    }\n\n    if (m_trayIcon) {\n        m_trayIcon->SetEnabled(m_settings.IsEnabled());\n        RefreshStatus();\n    }\n    RegisterHotkey();\n}\n\nvoid App::ShowAbout'''
+          text = text[:match.start()] + show + text[match.end():]
+          text = replace_once(text, '''void App::StartTimer() {\n    KillTimer(m_window, TIMER_ID_KEYPRESS);\n    KillTimer(m_window, TIMER_ID_EXPIRE);''', '''void App::StartTimer() {\n    KillTimer(m_window, TIMER_ID_KEYPRESS);\n    KillTimer(m_window, TIMER_ID_EXPIRE);\n    m_expireTimerArmed = false;''', path)
+          text = replace_once(text, '''void App::StopTimer() {\n    KillTimer(m_window, TIMER_ID_KEYPRESS);\n    KillTimer(m_window, TIMER_ID_EXPIRE);\n}''', '''void App::StopTimer() {\n    KillTimer(m_window, TIMER_ID_KEYPRESS);\n    KillTimer(m_window, TIMER_ID_EXPIRE);\n    m_expireTimerArmed = false;\n}''', path)
+          text = replace_once(text, '''    SYSTEM_POWER_STATUS status = {};\n    if (!GetSystemPowerStatus(&status)) {\n        return {};\n    }\n\n    PowerContext context;\n    context.onBattery = status.ACLineStatus == 0;''', '''    SYSTEM_POWER_STATUS status = {};\n    if (!GetSystemPowerStatus(&status) || status.ACLineStatus == 255) {\n        PowerContext unknown;\n        unknown.statusKnown = false;\n        return unknown;\n    }\n\n    PowerContext context;\n    context.onBattery = status.ACLineStatus == 0;''', path)
+          write(path, text)
+
+          path = "src/TrayIcon.cpp"
+          text = read(path)
+          pattern = re.compile(r'void TrayIcon::UpdateTooltip\(const Settings& settings,.*?\n\}\n\nvoid TrayIcon::SetEnabled', re.S)
+          match = pattern.search(text)
+          if not match:
+              raise RuntimeError("Unable to locate UpdateTooltip")
+          function = '''void TrayIcon::UpdateTooltip(const Settings& settings,\n                             bool pausedByBatterySaver,\n                             bool displayKeepAwakeActive) {\n    if (m_notifyData.cbSize == 0) {\n        return;\n    }\n\n    auto& loc = Localization::Instance();\n    std::wstring status = settings.IsEnabled()\n        ? loc.GetString(StringID::TooltipEnabled)\n        : loc.GetString(StringID::TooltipDisabled);\n\n    auto append = [&status](const std::wstring& value) {\n        if (!value.empty()) {\n            status += L" \\x2022 ";\n            status += value;\n        }\n    };\n\n    m_activeDurationMinutes = 0;\n    if (settings.IsEnabled()) {\n        if (pausedByBatterySaver) {\n            append(loc.GetString(StringID::StatusBatterySaverPaused));\n        }\n\n        const bool isRu = loc.GetLanguage() == Language::Russian;\n        const wchar_t secUnit = isRu ? L'\\x0441' : L's';\n        const wchar_t minUnit = isRu ? L'\\x043C' : L'm';\n        const wchar_t hourUnit = isRu ? L'\\x0447' : L'h';\n\n        const WORD vk = settings.GetVirtualKey();\n        const DWORD period = settings.GetPeriodSec();\n        if (vk != 0 && period > 0) {\n            wchar_t part[64] = {};\n            StringCchPrintfW(part, _countof(part), L"%s/%lu%c",\n                             Utils::GetKeyName(vk).c_str(),\n                             static_cast<unsigned long>(period), secUnit);\n            append(part);\n        }\n\n        if (displayKeepAwakeActive) {\n            append(loc.GetString(StringID::SettingsKeepDisplay));\n        }\n\n        const TimerConfig timer = settings.GetTimerConfig();\n        if (timer.mode == TimerMode::Duration) {\n            m_activeDurationMinutes = timer.durationMinutes;\n            const DWORD remaining = timer.GetRemainingSeconds();\n            if (remaining != INFINITE && remaining > 0) {\n                DWORD minutes = (remaining + 59U) / 60U;\n                const DWORD hours = minutes / 60;\n                minutes %= 60;\n                wchar_t part[96] = {};\n                if (hours > 0) {\n                    StringCchPrintfW(part, _countof(part), L"%s %lu%c %02lu%c",\n                                     loc.GetString(StringID::SettingsTimer),\n                                     static_cast<unsigned long>(hours), hourUnit,\n                                     static_cast<unsigned long>(minutes), minUnit);\n                } else {\n                    StringCchPrintfW(part, _countof(part), L"%s %lu%c",\n                                     loc.GetString(StringID::SettingsTimer),\n                                     static_cast<unsigned long>(minutes), minUnit);\n                }\n                append(part);\n            }\n        } else if (timer.mode == TimerMode::UntilTime) {\n            wchar_t part[128] = {};\n            if (timer.IsUntilNextDay()) {\n                StringCchPrintfW(part, _countof(part), L"%s %s %02d:%02d",\n                                 loc.GetString(StringID::SettingsTimerUntil),\n                                 loc.GetString(StringID::SettingsTimerTomorrow),\n                                 timer.untilTime.wHour, timer.untilTime.wMinute);\n            } else {\n                StringCchPrintfW(part, _countof(part), L"%s %02d:%02d",\n                                 loc.GetString(StringID::SettingsTimerUntil),\n                                 timer.untilTime.wHour, timer.untilTime.wMinute);\n            }\n            append(part);\n        }\n    }\n\n    m_statusText = status;\n    StringCchCopyW(m_notifyData.szTip, _countof(m_notifyData.szTip), status.c_str());\n    m_notifyData.uFlags = NIF_TIP | NIF_SHOWTIP | NIF_GUID;\n    Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"update tray tooltip");\n}\n\nvoid TrayIcon::SetEnabled'''
+          text = text[:match.start()] + function + text[match.end():]
+          write(path, text)
+
+          path = "tests/SettingsTests.cpp"
+          text = read(path)
+          insert = '''\n    Settings snapshot = settings;\n    Settings staged = settings;\n    staged.SetKeepDisplayOn(!snapshot.GetKeepDisplayOn());\n    Expect(settings.GetKeepDisplayOn() == snapshot.GetKeepDisplayOn(),\n           "editing a staged settings copy should not mutate the live snapshot");\n'''
+          text = replace_once(text, '\n    if (g_failures == 0) {', insert + '\n    if (g_failures == 0) {', path)
+          write(path, text)
+
+          for path, heading, command in [
+              ("README.md", "## Changelog", '''## Verify a release checksum\n\n```powershell\n(Get-FileHash .\\Everon.exe -Algorithm SHA256).Hash.ToLower()\nGet-Content .\\Everon.exe.sha256\n```\n\nThe two SHA-256 values must match.\n\n'''),
+              ("README.ru.md", "## История изменений", '''## Проверка SHA-256 релиза\n\n```powershell\n(Get-FileHash .\\Everon.exe -Algorithm SHA256).Hash.ToLower()\nGet-Content .\\Everon.exe.sha256\n```\n\nЗначения SHA-256 должны совпадать.\n\n''')]:
+              text = read(path)
+              text = replace_once(text, heading, command + heading, path)
+              write(path, text)
+
+          for temp in [".github/workflows/sonar-audit.yml", ".github/workflows/apply-audit-fixes.yml"]:
+              p = Path(temp)
+              if p.exists():
+                  p.unlink()
+
+      - name: Verify changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/sonar-audit.yml
+          test ! -e .github/workflows/apply-audit-fixes.yml
+          grep -q '^on:$' .github/workflows/release.yml
+          ! grep -q 'push:' .github/workflows/release.yml
+          grep -q 'statusKnown' src/PowerPolicy.h
+          grep -q 'ErrorTimerState' src/Localization.h
+          grep -q 'Verify version metadata' .github/workflows/build.yml
+          grep -q 'Verify version metadata' .github/workflows/release.yml
+
+      - name: Commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add -A
+          git commit -m "Apply repository audit hardening"
+          git push origin HEAD:codex/audit-fixes
