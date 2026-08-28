@@ -47,7 +47,7 @@ public:
 
     const HotkeyConfig& GetConfig() const { return m_config; }
 
-    bool HandleHotkey(WPARAM wParam);
+    bool HandleHotkey(WPARAM wParam) const;
 
     static std::wstring HotkeyToString(const HotkeyConfig& config);
 
