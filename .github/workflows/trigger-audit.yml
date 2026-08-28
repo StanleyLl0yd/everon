@@ -1,4 +1,4 @@
-name: Trigger audit hardening
+name: Apply audit hardening
 
 on:
   push:
@@ -6,15 +6,60 @@ on:
       - codex/audit-fixes
 
 permissions:
-  actions: write
-  contents: read
+  contents: write
 
 jobs:
-  trigger:
+  apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Dispatch audit hardening
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/audit-fixes
+          fetch-depth: 0
+
+      - name: Apply prepared patch
+        shell: python
+        run: |
+          from pathlib import Path
+          import textwrap
+
+          source = Path(".github/workflows/apply-audit-fixes.yml")
+          if not source.exists():
+              print("Prepared patch already applied.")
+              raise SystemExit(0)
+
+          text = source.read_text(encoding="utf-8")
+          marker = "      - name: Apply fixes\n        shell: python\n        run: |\n"
+          start = text.index(marker) + len(marker)
+          end = text.index("\n      - name: Verify changes", start)
+          script = textwrap.dedent(text[start:end])
+          exec(compile(script, str(source), "exec"), {"__name__": "__main__"})
+
+      - name: Verify prepared patch
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run apply-audit-fixes.yml --repo "$GITHUB_REPOSITORY" --ref codex/audit-fixes
+        run: |
+          set -euo pipefail
+          if [ -e .github/workflows/apply-audit-fixes.yml ]; then
+            echo "Prepared patch was not removed"
+            exit 1
+          fi
+          test ! -e .github/workflows/sonar-audit.yml
+          grep -q 'Verify version metadata' .github/workflows/build.yml
+          grep -q 'Verify version metadata' .github/workflows/release.yml
+          grep -q 'statusKnown' src/PowerPolicy.h
+          grep -q 'ErrorTimerState' src/Localization.h
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add -A
+          git commit -m "Apply repository audit hardening"
+          git push origin HEAD:codex/audit-fixes
