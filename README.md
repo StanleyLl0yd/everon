@@ -76,6 +76,15 @@ CI covers the Windows x64 Release build, timer behavior, hotkey parsing/serializ
 
 Main stack: C++17, native Win32 API, CMake, and CTest.
 
+## Verify a release checksum
+
+```powershell
+(Get-FileHash .\Everon.exe -Algorithm SHA256).Hash.ToLower()
+Get-Content .\Everon.exe.sha256
+```
+
+The two SHA-256 values must match.
+
 ## Changelog
 
 [English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md)

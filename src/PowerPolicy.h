@@ -3,6 +3,7 @@
 namespace Everon {
 
 struct PowerContext {
+    bool statusKnown = true;
     bool onBattery = false;
     bool batterySaver = false;
 };
@@ -23,13 +24,13 @@ inline PowerDecision EvaluatePowerPolicy(bool enabled,
         return decision;
     }
 
-    if (respectBatterySaver && context.batterySaver) {
+    if (context.statusKnown && respectBatterySaver && context.batterySaver) {
         decision.pausedByBatterySaver = true;
         return decision;
     }
 
     decision.preventSystemSleep = true;
-    decision.keepDisplayOn = keepDisplayOn && (!context.onBattery || allowDisplayOnBattery);
+    decision.keepDisplayOn = keepDisplayOn && (!context.statusKnown || !context.onBattery || allowDisplayOnBattery);
     return decision;
 }
 

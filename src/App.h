@@ -24,7 +24,7 @@ public:
 private:
     static LRESULT CALLBACK WindowProc(HWND window, UINT message,
                                       WPARAM wParam, LPARAM lParam);
-    void OnCreate();
+    bool OnCreate();
     void OnDestroy();
     void OnTimer(UINT_PTR timerId);
     void OnTrayIcon(LPARAM lParam);
@@ -41,7 +41,9 @@ private:
     void Exit();
     void StartTimer();
     void StopTimer();
-    void ArmExpireTimer(const TimerConfig& timer);
+    bool ArmExpireTimer(const TimerConfig& timer);
+    bool ExpireTimerIfNeeded();
+    void DisableAfterTimerFailure();
     void RefreshStatus();
     PowerContext QueryPowerContext() const noexcept;
     bool UpdatePowerState();
@@ -58,6 +60,7 @@ private:
     bool m_isSettingsDialogOpen = false;
     bool m_powerFailureNotified = false;
     bool m_pausedByBatterySaver = false;
+    bool m_expireTimerArmed = false;
 
     UINT m_taskbarCreatedMessage = 0;
 

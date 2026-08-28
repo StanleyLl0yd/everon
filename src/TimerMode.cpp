@@ -116,8 +116,7 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
     }
 
     if (!ok) {
-        // Fall back to treating local time as UTC if conversion still fails.
-        targetUtc = targetLocal;
+        return 0;
     }
 
     return UtcSystemTimeToFileTimeUll(targetUtc);
@@ -136,7 +135,8 @@ static ULONGLONG ResolveTargetUtc(const TimerConfig& timer) noexcept {
 
         SYSTEMTIME startUtc = {};
         if (!LocalToUtcSystemTime(timer.startTime, startUtc)) {
-            startUtc = timer.startTime;
+            const ULONGLONG nowUtc = NowUtcFileTimeUll();
+            return nowUtc + (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
         }
 
         const ULONGLONG startUtcU = UtcSystemTimeToFileTimeUll(startUtc);

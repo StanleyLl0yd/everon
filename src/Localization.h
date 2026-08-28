@@ -70,6 +70,7 @@ enum class StringID : unsigned short {
     ErrorInvalidTimerDuration,
     ErrorAutoStart,
     ErrorSaveSettings,
+    ErrorTimerState,
     ErrorPowerState,
 
     TooltipDisabled,

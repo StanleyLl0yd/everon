@@ -5,6 +5,8 @@
 #include "TimerMode.h"
 #include "resource.h"
 #include <strsafe.h>
+#include <array>
+#include <string_view>
 
 #ifndef NIF_SHOWTIP
 #define NIF_SHOWTIP 0x00000080
@@ -180,25 +182,21 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
     }
 
     auto& loc = Localization::Instance();
-    wchar_t tooltip[128] = {};
-    StringCchCopyW(tooltip, _countof(tooltip),
-                   settings.IsEnabled() ? loc.GetString(StringID::TooltipEnabled)
-                                        : loc.GetString(StringID::TooltipDisabled));
+    std::wstring status = settings.IsEnabled()
+        ? loc.GetString(StringID::TooltipEnabled)
+        : loc.GetString(StringID::TooltipDisabled);
 
-    auto AppendBullet = [&](const wchar_t* text) {
-        if (!text || !*text) {
-            return;
+    auto append = [&status](std::wstring_view value) {
+        if (!value.empty()) {
+            status += L" • ";
+            status.append(value);
         }
-        wchar_t tmp[128] = {};
-        StringCchPrintfW(tmp, _countof(tmp), L" \x2022 %s", text);
-        StringCchCatW(tooltip, _countof(tooltip), tmp);
     };
 
     m_activeDurationMinutes = 0;
-
     if (settings.IsEnabled()) {
         if (pausedByBatterySaver) {
-            AppendBullet(loc.GetString(StringID::StatusBatterySaverPaused));
+            append(loc.GetString(StringID::StatusBatterySaverPaused));
         }
 
         const bool isRu = loc.GetLanguage() == Language::Russian;
@@ -209,18 +207,18 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
         const WORD vk = settings.GetVirtualKey();
         const DWORD period = settings.GetPeriodSec();
         if (vk != 0 && period > 0) {
-            const std::wstring keyName = Utils::GetKeyName(vk);
-            wchar_t part[64] = {};
-            StringCchPrintfW(part, _countof(part), L"%s/%lu%c", keyName.c_str(),
+            std::array<wchar_t, 64> part{};
+            StringCchPrintfW(part.data(), part.size(), L"%s/%lu%c",
+                             Utils::GetKeyName(vk).c_str(),
                              static_cast<unsigned long>(period), secUnit);
-            AppendBullet(part);
+            append(part.data());
         }
 
         if (displayKeepAwakeActive) {
-            AppendBullet(loc.GetString(StringID::SettingsKeepDisplay));
+            append(loc.GetString(StringID::SettingsKeepDisplay));
         }
 
-        TimerConfig timer = settings.GetTimerConfig();
+        const TimerConfig timer = settings.GetTimerConfig();
         if (timer.mode == TimerMode::Duration) {
             m_activeDurationMinutes = timer.durationMinutes;
             const DWORD remaining = timer.GetRemainingSeconds();
@@ -228,39 +226,37 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
                 DWORD minutes = (remaining + 59U) / 60U;
                 const DWORD hours = minutes / 60;
                 minutes %= 60;
-
-                wchar_t part[64] = {};
+                std::array<wchar_t, 96> part{};
                 if (hours > 0) {
-                    StringCchPrintfW(part, _countof(part), L"%s %lu%c %02lu%c",
+                    StringCchPrintfW(part.data(), part.size(), L"%s %lu%c %02lu%c",
                                      loc.GetString(StringID::SettingsTimer),
                                      static_cast<unsigned long>(hours), hourUnit,
                                      static_cast<unsigned long>(minutes), minUnit);
                 } else {
-                    StringCchPrintfW(part, _countof(part), L"%s %lu%c",
+                    StringCchPrintfW(part.data(), part.size(), L"%s %lu%c",
                                      loc.GetString(StringID::SettingsTimer),
                                      static_cast<unsigned long>(minutes), minUnit);
                 }
-                AppendBullet(part);
+                append(part.data());
             }
         } else if (timer.mode == TimerMode::UntilTime) {
-            wchar_t part[80] = {};
+            std::array<wchar_t, 128> part{};
             if (timer.IsUntilNextDay()) {
-                StringCchPrintfW(part, _countof(part), L"%s %s %02d:%02d",
+                StringCchPrintfW(part.data(), part.size(), L"%s %s %02d:%02d",
                                  loc.GetString(StringID::SettingsTimerUntil),
                                  loc.GetString(StringID::SettingsTimerTomorrow),
                                  timer.untilTime.wHour, timer.untilTime.wMinute);
             } else {
-                StringCchPrintfW(part, _countof(part), L"%s %02d:%02d",
+                StringCchPrintfW(part.data(), part.size(), L"%s %02d:%02d",
                                  loc.GetString(StringID::SettingsTimerUntil),
                                  timer.untilTime.wHour, timer.untilTime.wMinute);
             }
-            AppendBullet(part);
+            append(part.data());
         }
     }
 
-    m_statusText = tooltip;
-    StringCchCopyW(m_notifyData.szTip, _countof(m_notifyData.szTip), tooltip);
-
+    m_statusText = status;
+    StringCchCopyW(m_notifyData.szTip, _countof(m_notifyData.szTip), status.c_str());
     m_notifyData.uFlags = NIF_TIP | NIF_SHOWTIP | NIF_GUID;
     Utils::ShellNotifyIconChecked(NIM_MODIFY, &m_notifyData, L"update tray tooltip");
 }

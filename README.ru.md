@@ -76,6 +76,15 @@ build\Release\Everon.exe
 
 Основной стек: C++17, нативный Win32 API, CMake и CTest.
 
+## Проверка SHA-256 релиза
+
+```powershell
+(Get-FileHash .\Everon.exe -Algorithm SHA256).Hash.ToLower()
+Get-Content .\Everon.exe.sha256
+```
+
+Значения SHA-256 должны совпадать.
+
 ## История изменений
 
 [English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md)

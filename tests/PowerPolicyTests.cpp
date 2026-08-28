@@ -45,6 +45,15 @@ int main() {
     Expect(decision.preventSystemSleep, "Battery Saver should be ignored when policy is disabled");
     Expect(decision.keepDisplayOn, "display keep-awake should remain active when Battery Saver is ignored");
 
+    PowerContext unknown{};
+    unknown.statusKnown = false;
+    unknown.onBattery = true;
+    unknown.batterySaver = true;
+    decision = EvaluatePowerPolicy(true, true, true, false, unknown);
+    Expect(decision.preventSystemSleep, "unknown power status should not pause keep-awake");
+    Expect(decision.keepDisplayOn, "unknown power status should preserve configured display keep-awake");
+    Expect(!decision.pausedByBatterySaver, "unknown power status should not be treated as Battery Saver");
+
     decision = EvaluatePowerPolicy(false, true, true, true, saver);
     Expect(!decision.preventSystemSleep && !decision.keepDisplayOn,
            "disabled app should never request keep-awake state");
