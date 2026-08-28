@@ -13,9 +13,9 @@ enum class TimerMode {
 struct TimerConfig {
     TimerMode mode = TimerMode::Indefinite;
     DWORD durationMinutes = 60;
-    SYSTEMTIME untilTime = {}; // Only hour and minute are used.
-    SYSTEMTIME startTime = {}; // Legacy local start time kept for backward compatibility.
-    ULONGLONG endTimeUtc = 0; // Persisted UTC deadline; 0 means unset.
+    SYSTEMTIME untilTime = {};
+    SYSTEMTIME startTime = {};
+    ULONGLONG endTimeUtc = 0;
     ULONGLONG monotonicDeadlineMs = 0;
 
     static constexpr DWORD MIN_DURATION_MIN = 5;
@@ -30,5 +30,12 @@ struct TimerConfig {
     void ResetStartTime() noexcept;
     void ResumeMonotonicDuration() noexcept;
 };
+
+#ifdef EVERON_TESTING
+using LocalToUtcTestFn = bool (*)(const SYSTEMTIME&, SYSTEMTIME&) noexcept;
+ULONGLONG ComputeNextUntilUtcForTesting(const SYSTEMTIME& nowLocal,
+                                        const SYSTEMTIME& untilTime,
+                                        LocalToUtcTestFn converter) noexcept;
+#endif
 
 }
