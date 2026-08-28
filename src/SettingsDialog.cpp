@@ -401,25 +401,6 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
     m_settings->SetAutoStart(autoStart);
     m_settings->SetHotkeyConfig(hotkey);
     m_settings->SetTimerConfig(timer);
-
-    if (!Settings::SetAutoStartEnabled(autoStart)) {
-        MessageBoxW(dialog,
-                   loc.GetString(StringID::ErrorAutoStart),
-                   loc.GetString(StringID::ErrorTitle),
-                   MB_OK | MB_ICONWARNING);
-
-        const bool actual = Settings::IsAutoStartEnabled();
-        m_settings->SetAutoStart(actual);
-    }
-
-    if (!m_settings->SaveToRegistry()) {
-        MessageBoxW(dialog,
-                   loc.GetString(StringID::ErrorSaveSettings),
-                   loc.GetString(StringID::ErrorTitle),
-                   MB_OK | MB_ICONWARNING);
-        return false;
-    }
-
     return true;
 }
 
