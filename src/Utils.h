@@ -4,8 +4,7 @@
 #include <shellapi.h>
 #include <string>
 
-namespace Everon {
-namespace Utils {
+namespace Everon::Utils {
 
 #ifdef _DEBUG
 void DebugLog(const wchar_t* format, ...);
@@ -27,6 +26,11 @@ public:
     explicit SingleInstanceGuard(const wchar_t* mutexName);
     ~SingleInstanceGuard();
 
+    SingleInstanceGuard(const SingleInstanceGuard&) = delete;
+    SingleInstanceGuard& operator=(const SingleInstanceGuard&) = delete;
+    SingleInstanceGuard(SingleInstanceGuard&&) = delete;
+    SingleInstanceGuard& operator=(SingleInstanceGuard&&) = delete;
+
     bool IsFirstInstance() const noexcept { return m_isFirst; }
 
 private:
@@ -34,5 +38,4 @@ private:
     bool m_isFirst = false;
 };
 
-}
 }
