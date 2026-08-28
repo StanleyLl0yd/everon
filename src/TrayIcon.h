@@ -45,6 +45,7 @@ public:
 
 private:
     void ShowContextMenu();
+    void DispatchCommand(int command);
     void UpdateIcon();
 
     HWND m_parentWindow = nullptr;
