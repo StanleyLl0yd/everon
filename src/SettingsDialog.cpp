@@ -125,7 +125,7 @@ void SettingsDialog::OnInitDialog(HWND dialog) {
 }
 
 void SettingsDialog::UpdateDialogText(HWND dialog) {
-    const auto& loc = Localization::Instance();
+    const const auto& loc = Localization::Instance();
     SetWindowTextW(dialog, loc.GetString(StringID::SettingsTitle));
     SetDlgItemTextW(dialog, IDC_LANGUAGE_LABEL, loc.GetString(StringID::SettingsLanguage));
     SetDlgItemTextW(dialog, IDC_GENERAL_GROUP, loc.GetString(StringID::SettingsGeneral));
@@ -180,7 +180,7 @@ void SettingsDialog::PopulateLanguageComboBox(HWND dialog) {
 void SettingsDialog::PopulateKeyComboBox(HWND comboBox, WORD selectedKey) {
     SendMessageW(comboBox, CB_RESETCONTENT, 0, 0);
 
-    const auto& loc = Localization::Instance();
+    const const auto& loc = Localization::Instance();
 
     struct KeyItem {
         const wchar_t* text;
@@ -214,7 +214,7 @@ void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) {
     HWND combo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
     SendMessageW(combo, CB_RESETCONTENT, 0, 0);
 
-    const auto& loc = Localization::Instance();
+    const const auto& loc = Localization::Instance();
 
     struct HotkeyItem {
         const wchar_t* text;
@@ -301,7 +301,7 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         return false;
     }
 
-    const auto& loc = Localization::Instance();
+    const const auto& loc = Localization::Instance();
 
     HWND keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
     const int keySelection = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));

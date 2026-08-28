@@ -29,7 +29,7 @@ bool App::SaveSettings() {
     }
 
     Utils::DebugLog(L"[Everon] Failed to save settings to registry\n");
-    const auto& loc = Localization::Instance();
+    const const auto& loc = Localization::Instance();
 
     if (m_trayIcon) {
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
@@ -98,7 +98,7 @@ bool App::ExpireTimerIfNeeded() {
     UpdatePowerState();
     if (m_trayIcon) {
         m_trayIcon->SetEnabled(false);
-        const auto& loc = Localization::Instance();
+        const const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);
     }
@@ -123,7 +123,7 @@ void App::DisableAfterTimerFailure() {
 
     if (m_trayIcon) {
         m_trayIcon->SetEnabled(false);
-        const const auto& loc = Localization::Instance();
+        const const const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::ErrorTimerState), NIIF_WARNING);
     }
@@ -135,7 +135,7 @@ void App::NotifyKeyPressFailure() {
         return;
     }
 
-    const const auto& loc = Localization::Instance();
+    const const const auto& loc = Localization::Instance();
     using enum Language;
     const wchar_t* message = nullptr;
     switch (loc.GetLanguage()) {
@@ -273,7 +273,7 @@ bool App::OnCreate() {
     m_trayIcon->SetExitCallback([this]() { Exit(); });
 
     if (!m_trayIcon->Add()) {
-        const auto& loc = Localization::Instance();
+        const const auto& loc = Localization::Instance();
         MessageBoxW(nullptr,
                     loc.GetString(StringID::ErrorTrayIcon),
                     loc.GetString(StringID::ErrorTitle),
@@ -419,7 +419,7 @@ void App::ToggleEnabled() {
         RefreshStatus();
 
         if (m_settings.GetShowToggleNotifications()) {
-            const auto& loc = Localization::Instance();
+            const const auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(
                 loc.GetString(StringID::ErrorTitle),
                 m_settings.IsEnabled() ? loc.GetString(StringID::NotifyEnabled)
@@ -451,7 +451,7 @@ void App::SetQuickDuration(DWORD minutes) {
         RefreshStatus();
 
         if (!wasEnabled && m_settings.GetShowToggleNotifications()) {
-            const auto& loc = Localization::Instance();
+            const const auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                          loc.GetString(StringID::NotifyEnabled), NIIF_INFO);
         }
@@ -476,7 +476,7 @@ void App::SetQuickUntil(const SYSTEMTIME& untilTime) {
         RefreshStatus();
 
         if (!wasEnabled && m_settings.GetShowToggleNotifications()) {
-            const auto& loc = Localization::Instance();
+            const const auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                          loc.GetString(StringID::NotifyEnabled), NIIF_INFO);
         }
@@ -529,7 +529,7 @@ void App::ShowSettings() {
     const bool autoStartChanged = staged.GetAutoStart() != originalAutoStart;
     if (autoStartChanged && !Settings::SetAutoStartEnabled(staged.GetAutoStart())) {
         Localization::Instance().SetLanguage(original.GetLanguage());
-        const const auto& loc = Localization::Instance();
+        const const const auto& loc = Localization::Instance();
         MessageBoxW(m_window,
                     loc.GetString(StringID::ErrorAutoStart),
                     loc.GetString(StringID::ErrorTitle),
@@ -547,7 +547,7 @@ void App::ShowSettings() {
             Utils::DebugLog(L"[Everon] Failed to roll back settings registry state\n");
         }
         Localization::Instance().SetLanguage(original.GetLanguage());
-        const const auto& loc = Localization::Instance();
+        const const const auto& loc = Localization::Instance();
         MessageBoxW(m_window,
                     loc.GetString(StringID::ErrorSaveSettings),
                     loc.GetString(StringID::ErrorTitle),
@@ -691,7 +691,7 @@ bool App::UpdatePowerState() {
 
     Utils::SetTimerChecked(m_window, TIMER_ID_POWER_RETRY, POWER_RETRY_INTERVAL_MS);
     if (!m_powerFailureNotified && m_trayIcon) {
-        const auto& loc = Localization::Instance();
+        const const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::ErrorPowerState), NIIF_WARNING);
         m_powerFailureNotified = true;
@@ -708,7 +708,7 @@ void App::RegisterHotkey() {
     const bool ok = m_hotkeyManager->RegisterHotkey(config, [this]() { ToggleEnabled(); });
 
     if (!ok && config.enabled && config.IsValid() && m_trayIcon) {
-        const auto& loc = Localization::Instance();
+        const const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::NotifyHotkeyFailed), NIIF_WARNING);
     }
