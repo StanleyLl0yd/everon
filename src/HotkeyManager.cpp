@@ -1,63 +1,60 @@
 #include "HotkeyManager.h"
 #include "Utils.h"
+#include <cwchar>
 
 namespace Everon {
 
-HotkeyManager::HotkeyManager(HWND window)
-    : m_window(window) {
-}
-
 HotkeyManager::~HotkeyManager() {
-    UnregisterHotkey();
+    Unregister();
 }
 
-bool HotkeyManager::RegisterHotkey(const HotkeyConfig& config, HotkeyCallback callback) {
+bool HotkeyManager::Register(HWND hwnd, const HotkeyConfig& config) {
+    Unregister();
 
-    UnregisterHotkey();
-
-    if (!config.enabled || !config.IsValid()) {
+    if (!config.enabled || config.virtualKey == 0) {
         return true;
     }
 
-    m_config = config;
-    m_callback = std::move(callback);
-
-    UINT mods = m_config.modifiers;
-#ifdef MOD_NOREPEAT
-    mods |= MOD_NOREPEAT;
-#endif
-
-    if (::RegisterHotKey(m_window, HOTKEY_ID_TOGGLE,
-                        mods, m_config.virtualKey)) {
-        m_isRegistered = true;
-        Utils::DebugLog(L"[Everon] Hotkey registered: %s\n",
-                       HotkeyToString(m_config).c_str());
-        return true;
-    } else {
-        Utils::DebugLog(L"[Everon] Failed to register hotkey: %lu\n", GetLastError());
-        m_isRegistered = false;
+    if (!IsValidConfig(config)) {
         return false;
     }
-}
 
-void HotkeyManager::UnregisterHotkey() {
-    if (m_isRegistered) {
-        ::UnregisterHotKey(m_window, HOTKEY_ID_TOGGLE);
-        m_isRegistered = false;
-        Utils::DebugLog(L"[Everon] Hotkey unregistered\n");
-    }
-}
-
-bool HotkeyManager::HandleHotkey(WPARAM wParam) {
-    if (wParam == HOTKEY_ID_TOGGLE && m_isRegistered && m_callback) {
-        m_callback();
+    if (RegisterHotKey(hwnd, HOTKEY_ID, config.modifiers, config.virtualKey)) {
+        m_hwnd = hwnd;
+        m_isRegistered = true;
         return true;
     }
+
     return false;
 }
 
+void HotkeyManager::Unregister() {
+    if (m_isRegistered && m_hwnd) {
+        UnregisterHotKey(m_hwnd, HOTKEY_ID);
+        m_isRegistered = false;
+        m_hwnd = nullptr;
+    }
+}
+
+bool HotkeyManager::IsValidConfig(const HotkeyConfig& config) {
+    if (!config.enabled) {
+        return true;
+    }
+
+    if (config.virtualKey == 0 || config.virtualKey > 0xFF) {
+        return false;
+    }
+
+    constexpr UINT allowedModifiers = MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN | MOD_NOREPEAT;
+    if ((config.modifiers & ~allowedModifiers) != 0) {
+        return false;
+    }
+
+    return true;
+}
+
 std::wstring HotkeyManager::HotkeyToString(const HotkeyConfig& config) {
-    if (!config.IsValid()) {
+    if (!config.enabled || config.virtualKey == 0) {
         return L"None";
     }
 
@@ -84,7 +81,7 @@ std::wstring HotkeyManager::HotkeyToString(const HotkeyConfig& config) {
 HotkeyConfig HotkeyManager::StringToHotkey(const wchar_t* str) {
     HotkeyConfig config;
 
-    if (!str || wcslen(str) == 0) {
+    if (!str || *str == L'\0') {
         return config;
     }
 
@@ -108,4 +105,4 @@ std::wstring HotkeyManager::HotkeyToRegistryString(const HotkeyConfig& config) {
     return buffer;
 }
 
-}
+} 
