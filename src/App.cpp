@@ -135,26 +135,27 @@ void App::NotifyKeyPressFailure() {
         return;
     }
 
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
+    using enum Language;
     const wchar_t* message = nullptr;
     switch (loc.GetLanguage()) {
-        case Language::Russian:
+        case Russian:
             message = L"Не удалось отправить периодическое нажатие клавиши. Everon продолжит предотвращать сон без эмуляции клавиш.";
             break;
-        case Language::French:
+        case French:
             message = L"L'envoi périodique de la touche a échoué. Everon continuera d'empêcher la veille sans frappe synthétique.";
             break;
-        case Language::German:
+        case German:
             message = L"Das periodische Tastensignal ist fehlgeschlagen. Everon verhindert den Ruhezustand weiterhin ohne simulierte Tastendrücke.";
             break;
-        case Language::Italian:
+        case Italian:
             message = L"L'invio periodico del tasto non è riuscito. Everon continuerà a impedire la sospensione senza pressioni simulate.";
             break;
-        case Language::Spanish:
+        case Spanish:
             message = L"Falló el envío periódico de la tecla. Everon seguirá evitando la suspensión sin pulsaciones simuladas.";
             break;
-        case Language::English:
-        case Language::Count:
+        case English:
+        case Count:
         default:
             message = L"Periodic key input failed. Everon will keep preventing sleep without synthetic key presses.";
             break;
@@ -519,8 +520,8 @@ void App::ShowSettings() {
         return;
     }
 
-    TimerConfig timer = staged.GetTimerConfig();
-    if (staged.IsEnabled() && timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
+    if (TimerConfig timer = staged.GetTimerConfig();
+        staged.IsEnabled() && timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
         timer.ResetStartTime();
         staged.SetTimerConfig(timer);
     }
@@ -528,7 +529,7 @@ void App::ShowSettings() {
     const bool autoStartChanged = staged.GetAutoStart() != originalAutoStart;
     if (autoStartChanged && !Settings::SetAutoStartEnabled(staged.GetAutoStart())) {
         Localization::Instance().SetLanguage(original.GetLanguage());
-        auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         MessageBoxW(m_window,
                     loc.GetString(StringID::ErrorAutoStart),
                     loc.GetString(StringID::ErrorTitle),
@@ -546,7 +547,7 @@ void App::ShowSettings() {
             Utils::DebugLog(L"[Everon] Failed to roll back settings registry state\n");
         }
         Localization::Instance().SetLanguage(original.GetLanguage());
-        auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         MessageBoxW(m_window,
                     loc.GetString(StringID::ErrorSaveSettings),
                     loc.GetString(StringID::ErrorTitle),
