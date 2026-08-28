@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $versionHeader = Get-Content "src/Version.h" -Raw
 function Read-VersionDefine([string]$name) {
-    $match = [regex]::Match($versionHeader, "(?m)^#define\s+$name\s+(\d+)$")
+    $match = [regex]::Match($versionHeader, "(?m)^#define\s+$name\s+(\d+)\s*$")
     if (-not $match.Success) { throw "Unable to read $name from src/Version.h" }
     return [int]$match.Groups[1].Value
 }
