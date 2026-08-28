@@ -92,8 +92,7 @@ HotkeyConfig HotkeyManager::StringToHotkey(const wchar_t* str) {
 
     int enabled = 0;
     unsigned int modifiers = 0;
-    unsigned int vk = 0;
-    if (swscanf_s(str, L"%d,%u,%u", &enabled, &modifiers, &vk) == 3) {
+    if (unsigned int vk = 0; swscanf_s(str, L"%d,%u,%u", &enabled, &modifiers, &vk) == 3) {
         config.enabled = (enabled != 0);
         config.modifiers = static_cast<UINT>(modifiers);
         config.virtualKey = static_cast<UINT>(vk);
