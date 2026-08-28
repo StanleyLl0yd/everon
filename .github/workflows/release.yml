@@ -13,9 +13,12 @@ concurrency:
 jobs:
   build:
     name: Build release
-    runs-on: windows-latest
+    runs-on: windows-2025
     permissions:
       contents: read
+    env:
+      WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+      WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
       target_sha: ${{ steps.resolve.outputs.target_sha }}
@@ -90,13 +93,51 @@ jobs:
         run: ./scripts/verify-version.ps1
 
       - name: Configure
-        run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
+        run: cmake -S . -B build -A x64 -T v143 -DBUILD_TESTING=ON -DEVERON_WARNINGS_AS_ERRORS=ON
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Sign executable
+        if: env.WINDOWS_SIGNING_CERTIFICATE_BASE64 != ''
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "everon-signing.pfx"
+          try {
+            [IO.File]::WriteAllBytes(
+              $pfx,
+              [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)
+            )
+            $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" `
+              -Filter signtool.exe -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+              Sort-Object FullName -Descending |
+              Select-Object -First 1
+            if (-not $signtool) {
+              throw "signtool.exe was not found"
+            }
+
+            & $signtool.FullName sign `
+              /fd SHA256 `
+              /td SHA256 `
+              /tr "http://timestamp.digicert.com" `
+              /f $pfx `
+              /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD `
+              "build/Release/Everon.exe"
+            if ($LASTEXITCODE -ne 0) {
+              throw "Authenticode signing failed"
+            }
+
+            $signature = Get-AuthenticodeSignature "build/Release/Everon.exe"
+            if ($signature.Status -ne "Valid") {
+              throw "Signed executable did not validate: $($signature.Status)"
+            }
+          } finally {
+            Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Generate SHA-256
         id: hash
