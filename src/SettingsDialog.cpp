@@ -35,13 +35,13 @@ bool SettingsDialog::Show(HWND parent, Settings& settings) {
 
 INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
                                             WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* instance = nullptr;
+    const SettingsDialog* instance = nullptr;
 
     if (message == WM_INITDIALOG) {
-        instance = std::bit_cast<SettingsDialog*>(lParam);
+        instance = std::bit_cast<const SettingsDialog*>(lParam);
         SetWindowLongPtrW(dialog, GWLP_USERDATA, lParam);
     } else {
-        instance = std::bit_cast<SettingsDialog*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
+        instance = std::bit_cast<const SettingsDialog*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
     }
 
     if (!instance) {
