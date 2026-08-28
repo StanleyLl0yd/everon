@@ -1,5 +1,6 @@
 #include "HotkeyManager.h"
 #include "Utils.h"
+#include <array>
 
 namespace Everon {
 
@@ -12,7 +13,6 @@ HotkeyManager::~HotkeyManager() {
 }
 
 bool HotkeyManager::RegisterHotkey(const HotkeyConfig& config, HotkeyCallback callback) {
-
     UnregisterHotkey();
 
     if (!config.enabled || !config.IsValid()) {
@@ -27,28 +27,31 @@ bool HotkeyManager::RegisterHotkey(const HotkeyConfig& config, HotkeyCallback ca
     mods |= MOD_NOREPEAT;
 #endif
 
-    if (::RegisterHotKey(m_window, HOTKEY_ID_TOGGLE,
-                        mods, m_config.virtualKey)) {
+    if (::RegisterHotKey(m_window, HOTKEY_ID_TOGGLE, mods, m_config.virtualKey)) {
         m_isRegistered = true;
         Utils::DebugLog(L"[Everon] Hotkey registered: %s\n",
-                       HotkeyToString(m_config).c_str());
+                        HotkeyToString(m_config).c_str());
         return true;
-    } else {
-        Utils::DebugLog(L"[Everon] Failed to register hotkey: %lu\n", GetLastError());
-        m_isRegistered = false;
-        return false;
     }
+
+    Utils::DebugLog(L"[Everon] Failed to register hotkey: %lu\n", GetLastError());
+    m_isRegistered = false;
+    return false;
 }
 
 void HotkeyManager::UnregisterHotkey() {
-    if (m_isRegistered) {
-        ::UnregisterHotKey(m_window, HOTKEY_ID_TOGGLE);
-        m_isRegistered = false;
-        Utils::DebugLog(L"[Everon] Hotkey unregistered\n");
+    if (!m_isRegistered) {
+        return;
     }
+
+    if (!::UnregisterHotKey(m_window, HOTKEY_ID_TOGGLE)) {
+        Utils::DebugLog(L"[Everon] Failed to unregister hotkey: %lu\n", GetLastError());
+    }
+    m_isRegistered = false;
+    Utils::DebugLog(L"[Everon] Hotkey unregistered\n");
 }
 
-bool HotkeyManager::HandleHotkey(WPARAM wParam) {
+bool HotkeyManager::HandleHotkey(WPARAM wParam) const {
     if (wParam == HOTKEY_ID_TOGGLE && m_isRegistered && m_callback) {
         m_callback();
         return true;
@@ -77,7 +80,6 @@ std::wstring HotkeyManager::HotkeyToString(const HotkeyConfig& config) {
     }
 
     result += Utils::GetKeyName(config.virtualKey);
-
     return result;
 }
 
@@ -89,7 +91,8 @@ HotkeyConfig HotkeyManager::StringToHotkey(const wchar_t* str) {
     }
 
     int enabled = 0;
-    unsigned int modifiers = 0, vk = 0;
+    unsigned int modifiers = 0;
+    unsigned int vk = 0;
     if (swscanf_s(str, L"%d,%u,%u", &enabled, &modifiers, &vk) == 3) {
         config.enabled = (enabled != 0);
         config.modifiers = static_cast<UINT>(modifiers);
@@ -100,12 +103,12 @@ HotkeyConfig HotkeyManager::StringToHotkey(const wchar_t* str) {
 }
 
 std::wstring HotkeyManager::HotkeyToRegistryString(const HotkeyConfig& config) {
-    wchar_t buffer[64];
-    swprintf_s(buffer, L"%d,%u,%u",
-              config.enabled ? 1 : 0,
-              config.modifiers,
-              config.virtualKey);
-    return buffer;
+    std::array<wchar_t, 64> buffer{};
+    swprintf_s(buffer.data(), buffer.size(), L"%d,%u,%u",
+               config.enabled ? 1 : 0,
+               config.modifiers,
+               config.virtualKey);
+    return buffer.data();
 }
 
 }
