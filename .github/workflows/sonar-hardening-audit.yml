@@ -12,10 +12,14 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: List open PR issues
+      - name: Inspect project and PR issues
         shell: bash
         run: |
           set -euo pipefail
+          curl --fail --silent --show-error --get \
+            'https://sonarcloud.io/api/components/show' \
+            --data-urlencode 'component=StanleyLl0yd_everon' \
+            | jq '{component}'
           curl --fail --silent --show-error --get \
             'https://sonarcloud.io/api/issues/search' \
             --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
