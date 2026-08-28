@@ -56,8 +56,8 @@ bool PowerManager::SendKeyPress(WORD virtualKey) const {
     inputs[1].ki.wVk = virtualKey;
     inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 
-    const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
-    if (sent != inputs.size()) {
+    if (const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+        sent != static_cast<UINT>(inputs.size())) {
         Utils::DebugLog(L"[Everon] SendInput failed/sent %u: %lu\n", sent, GetLastError());
         return false;
     }
