@@ -1,0 +1,24 @@
+name: Sonar auth capability check
+
+on:
+  push:
+    branches:
+      - codex/sonar-audit
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - name: Check token availability
+        shell: bash
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo 'SONAR_TOKEN_PRESENT=true'
+          else
+            echo 'SONAR_TOKEN_PRESENT=false'
+          fi
