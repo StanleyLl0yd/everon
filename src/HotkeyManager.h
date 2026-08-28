@@ -11,7 +11,7 @@ struct HotkeyConfig {
     UINT modifiers = 0;
     UINT virtualKey = 0;
 
-    bool IsValid() const {
+    constexpr bool IsValid() const noexcept {
         constexpr UINT kAllowedModifiers = MOD_ALT | MOD_CONTROL | MOD_SHIFT | MOD_WIN;
         return virtualKey > 0 && virtualKey <= 0xFFU &&
                (modifiers & ~kAllowedModifiers) == 0;
@@ -35,9 +35,9 @@ public:
     bool RegisterHotkey(const HotkeyConfig& config, HotkeyCallback callback);
     void UnregisterHotkey();
 
-    bool IsRegistered() const { return m_isRegistered; }
+    bool IsRegistered() const noexcept { return m_isRegistered; }
 
-    const HotkeyConfig& GetConfig() const { return m_config; }
+    const HotkeyConfig& GetConfig() const noexcept { return m_config; }
 
     bool HandleHotkey(WPARAM wParam) const;
 
