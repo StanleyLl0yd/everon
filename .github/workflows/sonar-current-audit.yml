@@ -1,0 +1,25 @@
+name: Sonar current audit
+
+on:
+  push:
+    branches:
+      - codex/sonar-audit
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect current main issues
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --get \
+            'https://sonarcloud.io/api/issues/search' \
+            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
+            --data-urlencode 'branch=main' \
+            --data-urlencode 'resolved=false' \
+            --data-urlencode 'ps=500' \
+            | jq '{total, by_rule: ([.issues[] | .rule] | group_by(.) | map({rule: .[0], count: length}) | sort_by(-.count)), by_component: ([.issues[] | .component] | group_by(.) | map({component: .[0], count: length}) | sort_by(-.count)), issues: [.issues[] | {rule,severity,component,line,message}]}'
