@@ -1,5 +1,6 @@
 #include "Localization.h"
 #include "Version.h"
+#include <array>
 
 namespace Everon {
 
@@ -7,7 +8,7 @@ namespace {
 constexpr int kLangCount = static_cast<int>(Language::Count);
 constexpr int kStrCount = static_cast<int>(StringID::Count);
 
-static const wchar_t* const kLanguageNames[kLangCount] = {
+constexpr std::array<const wchar_t*, kLangCount> kLanguageNames = {
     L"English",
     L"Русский",
     L"Français",
@@ -16,12 +17,12 @@ static const wchar_t* const kLanguageNames[kLangCount] = {
     L"Español"
 };
 
-static const wchar_t* const kLanguageCodes[kLangCount] = {
+constexpr std::array<const wchar_t*, kLangCount> kLanguageCodes = {
     L"en", L"ru", L"fr", L"de", L"it", L"es"
 };
 
 // Row order must match StringID enum order.
-static const wchar_t* const kStrings[kStrCount][kLangCount] = {
+constexpr std::array<std::array<const wchar_t*, kLangCount>, kStrCount> kStrings = {{
     { L"Enable", L"Включить", L"Activer", L"Aktivieren", L"Attiva", L"Activar" },
     { L"Disable", L"Отключить", L"Désactiver", L"Deaktivieren", L"Disattiva", L"Desactivar" },
     { L"Settings", L"Настройки", L"Paramètres", L"Einstellungen", L"Impostazioni", L"Configuración" },
@@ -92,7 +93,7 @@ static const wchar_t* const kStrings[kStrCount][kLangCount] = {
     { L"Failed to create tray icon.\nThe application may not function correctly.", L"Не удалось создать иконку в трее.\nПриложение может работать некорректно.", L"Impossible de créer l'icône de la barre d'état.\nL'application peut ne pas fonctionner correctement.", L"Tray-Symbol konnte nicht erstellt werden.\nDie Anwendung funktioniert möglicherweise nicht korrekt.", L"Impossibile creare l'icona nella barra.\nL'applicazione potrebbe non funzionare correttamente.", L"No se pudo crear el icono de la bandeja.\nLa aplicación puede no funcionar correctamente." },
     { L"Everon is already running.\nCheck the system tray for the icon.", L"Everon уже запущен.\nПроверьте системный трей.", L"Everon est déjà en cours d'exécution.\nVérifiez la barre d'état système.", L"Everon läuft bereits.\nÜberprüfen Sie die Taskleiste.", L"Everon è già in esecuzione.\nControlla la barra di sistema.", L"Everon ya está en ejecución.\nRevisa la bandeja del sistema." },
     { L"Everon", L"Everon", L"Everon", L"Everon", L"Everon", L"Everon" },
-};
+}};
 
 }
 
@@ -114,8 +115,8 @@ void Localization::SetLanguage(Language lang) {
 }
 
 const wchar_t* Localization::GetString(StringID id) const {
-    const int sid = static_cast<int>(id);
-    int lang = static_cast<int>(m_currentLanguage);
+    const auto sid = static_cast<int>(id);
+    auto lang = static_cast<int>(m_currentLanguage);
 
     if (sid < 0 || sid >= kStrCount) {
         return L"???";
@@ -124,7 +125,7 @@ const wchar_t* Localization::GetString(StringID id) const {
         lang = 0;
     }
 
-    const wchar_t* s = kStrings[sid][lang];
+    const auto* s = kStrings[sid][lang];
     if (!s || !*s) {
         s = kStrings[sid][0];
     }
@@ -132,7 +133,7 @@ const wchar_t* Localization::GetString(StringID id) const {
 }
 
 const wchar_t* Localization::GetLanguageName(Language lang) {
-    const int l = static_cast<int>(lang);
+    const auto l = static_cast<int>(lang);
     if (l < 0 || l >= kLangCount) {
         return kLanguageNames[0];
     }
@@ -140,21 +141,23 @@ const wchar_t* Localization::GetLanguageName(Language lang) {
 }
 
 Language Localization::DetectSystemLanguage() {
-    LANGID langId = GetUserDefaultUILanguage();
-    WORD primaryLang = PRIMARYLANGID(langId);
+    using enum Language;
+
+    const auto langId = GetUserDefaultUILanguage();
+    const auto primaryLang = PRIMARYLANGID(langId);
 
     switch (primaryLang) {
-        case LANG_RUSSIAN: return Language::Russian;
-        case LANG_FRENCH: return Language::French;
-        case LANG_GERMAN: return Language::German;
-        case LANG_ITALIAN: return Language::Italian;
-        case LANG_SPANISH: return Language::Spanish;
-        default: return Language::English;
+        case LANG_RUSSIAN: return Russian;
+        case LANG_FRENCH: return French;
+        case LANG_GERMAN: return German;
+        case LANG_ITALIAN: return Italian;
+        case LANG_SPANISH: return Spanish;
+        default: return English;
     }
 }
 
 const wchar_t* Localization::LanguageToString(Language lang) {
-    const int l = static_cast<int>(lang);
+    const auto l = static_cast<int>(lang);
     if (l < 0 || l >= kLangCount) {
         return L"en";
     }
@@ -162,16 +165,18 @@ const wchar_t* Localization::LanguageToString(Language lang) {
 }
 
 Language Localization::StringToLanguage(const wchar_t* str) {
+    using enum Language;
+
     if (!str) {
-        return Language::English;
+        return English;
     }
 
-    if (_wcsicmp(str, L"ru") == 0) return Language::Russian;
-    if (_wcsicmp(str, L"fr") == 0) return Language::French;
-    if (_wcsicmp(str, L"de") == 0) return Language::German;
-    if (_wcsicmp(str, L"it") == 0) return Language::Italian;
-    if (_wcsicmp(str, L"es") == 0) return Language::Spanish;
-    return Language::English;
+    if (_wcsicmp(str, L"ru") == 0) return Russian;
+    if (_wcsicmp(str, L"fr") == 0) return French;
+    if (_wcsicmp(str, L"de") == 0) return German;
+    if (_wcsicmp(str, L"it") == 0) return Italian;
+    if (_wcsicmp(str, L"es") == 0) return Spanish;
+    return English;
 }
 
 }
