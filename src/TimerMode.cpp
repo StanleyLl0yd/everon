@@ -2,13 +2,9 @@
 
 namespace Everon {
 
-using LocalToUtcFn = bool (*)(const SYSTEMTIME&, SYSTEMTIME&) noexcept;
-
 static inline ULONGLONG FileTimeToUll(const FILETIME& ft) noexcept {
-    ULARGE_INTEGER u;
-    u.LowPart = ft.dwLowDateTime;
-    u.HighPart = ft.dwHighDateTime;
-    return u.QuadPart;
+    return (static_cast<ULONGLONG>(ft.dwHighDateTime) << 32U) |
+           static_cast<ULONGLONG>(ft.dwLowDateTime);
 }
 
 static inline ULONGLONG NowUtcFileTimeUll() noexcept {
@@ -90,13 +86,10 @@ static bool IsUntilNextDayAt(const SYSTEMTIME& nowLocal, const SYSTEMTIME& until
     return nowLocal.wSecond > 0 || nowLocal.wMilliseconds > 0;
 }
 
+template <typename Converter>
 static ULONGLONG ComputeNextUntilUtcAt(const SYSTEMTIME& nowLocal,
                                        const SYSTEMTIME& untilTime,
-                                       LocalToUtcFn converter) noexcept {
-    if (!converter) {
-        return 0;
-    }
-
+                                       Converter&& converter) noexcept {
     SYSTEMTIME targetLocal = nowLocal;
     targetLocal.wHour = untilTime.wHour;
     targetLocal.wMinute = untilTime.wMinute;
@@ -133,7 +126,10 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
 #ifdef EVERON_TESTING
 ULONGLONG ComputeNextUntilUtcForTesting(const SYSTEMTIME& nowLocal,
                                         const SYSTEMTIME& untilTime,
-                                        LocalToUtcTestFn converter) noexcept {
+                                        const LocalToUtcTestFn& converter) noexcept {
+    if (!converter) {
+        return 0;
+    }
     return ComputeNextUntilUtcAt(nowLocal, untilTime, converter);
 }
 #endif
