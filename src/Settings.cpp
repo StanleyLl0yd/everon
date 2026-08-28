@@ -251,6 +251,13 @@ Settings::Settings() {
     GetLocalTime(&m_timerConfig.untilTime);
 }
 
+#ifdef EVERON_TESTING
+Settings::Settings(const wchar_t* registryKeyPath)
+    : m_registryKeyPath(registryKeyPath && *registryKeyPath ? registryKeyPath : REG_KEY_PATH) {
+    GetLocalTime(&m_timerConfig.untilTime);
+}
+#endif
+
 Language Settings::GetLanguage() const noexcept {
     return Localization::Instance().GetLanguage();
 }
@@ -344,10 +351,10 @@ bool Settings::IsValidVirtualKey(WORD vk) const noexcept {
 
 bool Settings::LoadFromRegistry() {
     HKEY rawKey = nullptr;
-    const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, REG_KEY_PATH, 0, KEY_READ, &rawKey);
+    const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0, KEY_READ, &rawKey);
     if (openResult != ERROR_SUCCESS) {
         if (openResult != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(openResult, L"RegOpenKeyExW(HKCU\\Software\\Everon)");
+            Utils::CheckWinApiStatus(openResult, L"RegOpenKeyExW(settings)");
         }
         SetLanguage(Localization::DetectSystemLanguage());
         m_autoStart = IsAutoStartEnabled();
@@ -360,7 +367,7 @@ bool Settings::LoadFromRegistry() {
     if (ReadDwordValue(key.Get(), L"PeriodSec", value)) {
         SetPeriodSec(value);
     }
-    if (ReadDwordValue(key.Get(), L"VkKey", value)) {
+    if (ReadDwordValue(key.Get(), L"VkKey", value) && value <= 0xFFFFU) {
         SetVirtualKey(static_cast<WORD>(value));
     }
     if (ReadDwordValue(key.Get(), L"KeepDisplayOn", value)) {
@@ -386,7 +393,11 @@ bool Settings::LoadFromRegistry() {
     }
 
     if (const auto hotkey = ReadStringValue(key.Get(), L"Hotkey")) {
-        m_hotkeyConfig = HotkeyManager::StringToHotkey(hotkey->c_str());
+        HotkeyConfig parsed = HotkeyManager::StringToHotkey(hotkey->c_str());
+        if (parsed.enabled && !parsed.IsValid()) {
+            parsed = {};
+        }
+        m_hotkeyConfig = parsed;
     }
 
     m_timerConfig = ReadTimerConfig(key.Get(), m_timerConfig);
@@ -401,9 +412,9 @@ bool Settings::SaveToRegistry() {
     }
 
     HKEY rawKey = nullptr;
-    const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, REG_KEY_PATH, 0, nullptr, 0,
+    const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0, nullptr, 0,
                                                KEY_WRITE, nullptr, &rawKey, nullptr);
-    if (!Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(HKCU\\Software\\Everon)")) {
+    if (!Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(settings)")) {
         return false;
     }
     RegistryKey key(rawKey);
