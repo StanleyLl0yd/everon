@@ -12,7 +12,7 @@ jobs:
   inspect:
     runs-on: ubuntu-24.04
     steps:
-      - name: List unresolved main issues
+      - name: Summarize unresolved main issues
         shell: bash
         run: |
           set -euo pipefail
@@ -22,4 +22,8 @@ jobs:
             --data-urlencode 'branch=main' \
             --data-urlencode 'resolved=false' \
             --data-urlencode 'ps=500' \
-            | jq '{total, issues: [.issues[] | {key,rule,severity,type,component,line,message,impacts}]}'
+            | jq '{
+                total,
+                byComponent: ([.issues[] | (.component | split(":")[1])] | group_by(.) | map({component: .[0], count: length})),
+                byRule: ([.issues[].rule] | group_by(.) | map({rule: .[0], count: length}))
+              }'
