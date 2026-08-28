@@ -24,7 +24,7 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE,
         }
 
         if (!forwarded) {
-            const const const const auto& loc = Localization::Instance();
+            const const const const const auto& loc = Localization::Instance();
             MessageBoxW(nullptr,
                         loc.GetString(StringID::ErrorAlreadyRunning),
                         loc.GetString(StringID::ErrorTitle),
