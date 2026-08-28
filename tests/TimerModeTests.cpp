@@ -17,14 +17,14 @@ SYSTEMTIME TwoMinutesFromNowLocal() {
     FILETIME nowFt{};
     GetSystemTimeAsFileTime(&nowFt);
 
-    ULARGE_INTEGER value{};
-    value.LowPart = nowFt.dwLowDateTime;
-    value.HighPart = nowFt.dwHighDateTime;
-    value.QuadPart += 2ULL * 60ULL * 10000000ULL;
+    const ULONGLONG nowValue =
+        (static_cast<ULONGLONG>(nowFt.dwHighDateTime) << 32U) |
+        static_cast<ULONGLONG>(nowFt.dwLowDateTime);
+    const ULONGLONG futureValue = nowValue + 2ULL * 60ULL * 10000000ULL;
 
     FILETIME futureFt{};
-    futureFt.dwLowDateTime = value.LowPart;
-    futureFt.dwHighDateTime = value.HighPart;
+    futureFt.dwLowDateTime = static_cast<DWORD>(futureValue & 0xFFFFFFFFULL);
+    futureFt.dwHighDateTime = static_cast<DWORD>(futureValue >> 32U);
 
     SYSTEMTIME futureUtc{};
     SYSTEMTIME futureLocal{};
