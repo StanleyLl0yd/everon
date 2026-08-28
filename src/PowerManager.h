@@ -9,6 +9,11 @@ public:
     PowerManager() = default;
     ~PowerManager();
 
+    PowerManager(const PowerManager&) = delete;
+    PowerManager& operator=(const PowerManager&) = delete;
+    PowerManager(PowerManager&&) = delete;
+    PowerManager& operator=(PowerManager&&) = delete;
+
     bool PreventSleep(bool keepDisplayOn);
     bool AllowSleep();
     void SendKeyPress(WORD virtualKey);
