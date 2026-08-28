@@ -37,9 +37,21 @@ foreach ($test in $tests) {
     }
 
     $output = Join-Path $coverageDir "$test.coverage"
-    & $coverageTool collect -o $output -f coverage $executable
+    & $coverageTool instrument $executable
     if ($LASTEXITCODE -ne 0) {
-        throw "Coverage collection failed for $test"
+        throw "Coverage instrumentation failed for $test"
+    }
+
+    try {
+        & $coverageTool collect -o $output -f coverage $executable
+        if ($LASTEXITCODE -ne 0) {
+            throw "Coverage collection failed for $test"
+        }
+    } finally {
+        & $coverageTool uninstrument $executable
+        if ($LASTEXITCODE -ne 0) {
+            throw "Coverage restoration failed for $test"
+        }
     }
 }
 
