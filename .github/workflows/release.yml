@@ -77,9 +77,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.resolve.outputs.tag }}
         run: |
-          gh release view "$env:TAG" --repo "$env:GITHUB_REPOSITORY" --json tagName *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = "application/vnd.github+json"
+            "X-GitHub-Api-Version" = "2022-11-28"
+          }
+          $response = Invoke-WebRequest `
+            -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases/tags/$env:TAG" `
+            -Headers $headers `
+            -SkipHttpErrorCheck
+          if ($response.StatusCode -eq 200) {
             throw "Release $env:TAG already exists. Bump the version before publishing another release."
+          }
+          if ($response.StatusCode -ne 404) {
+            throw "Unexpected GitHub API status while checking release: $($response.StatusCode)"
           }
 
       - name: Configure
@@ -169,8 +180,8 @@ jobs:
           fi
 
           gh release create "$TAG" \
-            "release/Everon.exe" \
-            "release/Everon.exe.sha256" \
+            "release/build/Release/Everon.exe" \
+            "release/build/Release/Everon.exe.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "Everon $TAG" \
