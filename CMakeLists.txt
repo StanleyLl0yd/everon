@@ -1,6 +1,21 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Everon VERSION 2.8.0 LANGUAGES CXX RC)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/src/Version.h" EVERON_VERSION_DEFINES
+    REGEX "^#define VER_(MAJOR|MINOR|PATCH) [0-9]+$")
+foreach(line IN LISTS EVERON_VERSION_DEFINES)
+    if(line MATCHES "^#define VER_MAJOR ([0-9]+)$")
+        set(EVERON_VERSION_MAJOR "${CMAKE_MATCH_1}")
+    elseif(line MATCHES "^#define VER_MINOR ([0-9]+)$")
+        set(EVERON_VERSION_MINOR "${CMAKE_MATCH_1}")
+    elseif(line MATCHES "^#define VER_PATCH ([0-9]+)$")
+        set(EVERON_VERSION_PATCH "${CMAKE_MATCH_1}")
+    endif()
+endforeach()
+if(NOT DEFINED EVERON_VERSION_MAJOR OR NOT DEFINED EVERON_VERSION_MINOR OR NOT DEFINED EVERON_VERSION_PATCH)
+    message(FATAL_ERROR "Unable to read Everon version from src/Version.h")
+endif()
+
+project(Everon VERSION "${EVERON_VERSION_MAJOR}.${EVERON_VERSION_MINOR}.${EVERON_VERSION_PATCH}" LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "Everon is a native Windows application and can only be built on Windows.")

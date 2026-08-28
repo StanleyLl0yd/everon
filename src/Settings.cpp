@@ -292,16 +292,15 @@ bool Settings::LoadFromRegistry() {
         timer.endTimeUtc = tempQword;
     } else if (timer.mode == TimerMode::Duration && timer.startTime.wYear != 0) {
         SYSTEMTIME startUtc = {};
-        if (!TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {
-            startUtc = timer.startTime;
-        }
-        FILETIME startFt = {};
-        if (SystemTimeToFileTime(&startUtc, &startFt)) {
+        if (TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {
+            FILETIME startFt = {};
+            if (SystemTimeToFileTime(&startUtc, &startFt)) {
             ULARGE_INTEGER u;
             u.LowPart = startFt.dwLowDateTime;
             u.HighPart = startFt.dwHighDateTime;
-            timer.endTimeUtc = u.QuadPart +
-                (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
+                timer.endTimeUtc = u.QuadPart +
+                    (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
+            }
         }
     }
 
@@ -412,25 +411,43 @@ bool Settings::IsAutoStartEnabled() {
     const LONG openRes = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, KEY_READ, &hKey);
     if (openRes != ERROR_SUCCESS) {
         if (openRes != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(openRes, L"RegOpenKeyExW(HKCU\\\\Run)");
+            Utils::CheckWinApiStatus(openRes, L"RegOpenKeyExW(HKCU\\Run)");
         }
         return false;
     }
 
-    wchar_t value[2048] = {};
     DWORD type = 0;
-    DWORD size = sizeof(value);
-    LONG result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,
-                                   reinterpret_cast<LPBYTE>(value), &size);
-    value[_countof(value) - 1] = L'\0';
-    const LONG closeRes = RegCloseKey(hKey);
-    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\\\Run)");
-
-    if (result != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) {
-        if (result != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\\\Run\\\\Everon)");
+    DWORD size = 0;
+    LONG result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type, nullptr, &size);
+    if (result != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ) || size < sizeof(wchar_t)) {
+        RegCloseKey(hKey);
+        if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
+            Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\Run\\Everon)");
         }
         return false;
+    }
+
+    std::vector<wchar_t> value((size / sizeof(wchar_t)) + 1, L'\0');
+    DWORD readSize = size;
+    result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,
+                              reinterpret_cast<LPBYTE>(value.data()), &readSize);
+    const LONG closeRes = RegCloseKey(hKey);
+    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\Run)");
+    if (result != ERROR_SUCCESS) {
+        Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\Run\\Everon)");
+        return false;
+    }
+    value.back() = L'\0';
+
+    std::wstring stored(value.data());
+    if (type == REG_EXPAND_SZ) {
+        const DWORD needed = ExpandEnvironmentStringsW(stored.c_str(), nullptr, 0);
+        if (needed != 0) {
+            std::vector<wchar_t> expanded(needed, L'\0');
+            if (ExpandEnvironmentStringsW(stored.c_str(), expanded.data(), needed) != 0) {
+                stored.assign(expanded.data());
+            }
+        }
     }
 
     const std::wstring exePath = GetExecutablePath();
@@ -438,35 +455,18 @@ bool Settings::IsAutoStartEnabled() {
         return false;
     }
 
-    std::wstring stored;
-    if (type == REG_EXPAND_SZ) {
-        wchar_t expanded[4096] = {};
-        DWORD expandedLen = ExpandEnvironmentStringsW(value, expanded, _countof(expanded));
-        if (expandedLen != 0 && expandedLen <= _countof(expanded)) {
-            stored = expanded;
-        } else {
-            stored = value;
-        }
-    } else {
-        stored = value;
-    }
-
     std::wstring first;
-    if (!stored.empty() && stored[0] == L'"') {
-        size_t end = stored.find(L'"', 1);
+    if (!stored.empty() && stored.front() == L'"') {
+        const size_t end = stored.find(L'"', 1);
         if (end != std::wstring::npos) {
             first = stored.substr(1, end - 1);
         }
     } else {
-        size_t end = stored.find_first_of(L" \t");
+        const size_t end = stored.find_first_of(L" \t");
         first = stored.substr(0, end);
     }
 
-    if (first.empty()) {
-        return false;
-    }
-
-    return _wcsicmp(first.c_str(), exePath.c_str()) == 0;
+    return !first.empty() && _wcsicmp(first.c_str(), exePath.c_str()) == 0;
 }
 
 bool Settings::SetAutoStartEnabled(bool enable) {

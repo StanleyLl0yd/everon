@@ -44,11 +44,11 @@ bool App::SaveSettings() {
     return false;
 }
 
-void App::ArmExpireTimer(const TimerConfig& timer) {
+bool App::ArmExpireTimer(const TimerConfig& timer) {
     const DWORD remainingMs = timer.GetRemainingMilliseconds();
     if (remainingMs == 0) {
-        OnTimer(TIMER_ID_EXPIRE);
-        return;
+        m_expireTimerArmed = false;
+        return ExpireTimerIfNeeded();
     }
 
     static constexpr DWORD kWinTimerMaxMs = 0x7FFFFFFFUL;
@@ -59,7 +59,69 @@ void App::ArmExpireTimer(const TimerConfig& timer) {
         intervalMs = kLongRearmChunkMs;
     }
 
-    Utils::SetTimerChecked(m_window, TIMER_ID_EXPIRE, intervalMs ? intervalMs : 1U);
+    m_expireTimerArmed = Utils::SetTimerChecked(
+        m_window, TIMER_ID_EXPIRE, intervalMs ? intervalMs : 1U) != 0;
+    if (!m_expireTimerArmed) {
+        DisableAfterTimerFailure();
+    }
+    return m_expireTimerArmed;
+}
+
+bool App::ExpireTimerIfNeeded() {
+    if (!m_settings.IsEnabled()) {
+        return false;
+    }
+
+    const TimerConfig timer = m_settings.GetTimerConfig();
+    if (timer.mode == TimerMode::Indefinite || !timer.IsExpired()) {
+        return false;
+    }
+
+    KillTimer(m_window, TIMER_ID_EXPIRE);
+    m_expireTimerArmed = false;
+    m_settings.SetEnabled(false);
+
+    TimerConfig cleared = timer;
+    cleared.endTimeUtc = 0;
+    cleared.startTime = {};
+    cleared.monotonicDeadlineMs = 0;
+    m_settings.SetTimerConfig(cleared);
+
+    SaveSettings();
+    StopTimer();
+    UpdatePowerState();
+    if (m_trayIcon) {
+        m_trayIcon->SetEnabled(false);
+        auto& loc = Localization::Instance();
+        m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
+                                     loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);
+    }
+    RefreshStatus();
+    return true;
+}
+
+void App::DisableAfterTimerFailure() {
+    if (!m_settings.IsEnabled()) {
+        return;
+    }
+
+    m_settings.SetEnabled(false);
+    TimerConfig timer = m_settings.GetTimerConfig();
+    timer.startTime = {};
+    timer.endTimeUtc = 0;
+    timer.monotonicDeadlineMs = 0;
+    m_settings.SetTimerConfig(timer);
+    StopTimer();
+    UpdatePowerState();
+    SaveSettings();
+
+    if (m_trayIcon) {
+        m_trayIcon->SetEnabled(false);
+        auto& loc = Localization::Instance();
+        m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
+                                     loc.GetString(StringID::ErrorTimerState), NIIF_WARNING);
+    }
+    RefreshStatus();
 }
 
 int App::Run() {
@@ -133,8 +195,7 @@ LRESULT CALLBACK App::WindowProc(HWND window, UINT message,
 
     switch (message) {
         case WM_CREATE:
-            app->OnCreate();
-            return 0;
+            return app->OnCreate() ? 0 : -1;
         case WM_TIMER:
             app->OnTimer(static_cast<UINT_PTR>(wParam));
             return 0;
@@ -158,7 +219,7 @@ LRESULT CALLBACK App::WindowProc(HWND window, UINT message,
     return DefWindowProcW(window, message, wParam, lParam);
 }
 
-void App::OnCreate() {
+bool App::OnCreate() {
     m_settings.LoadFromRegistry();
 
     m_trayIcon = std::make_unique<TrayIcon>(m_window, m_instance);
@@ -176,8 +237,7 @@ void App::OnCreate() {
                     loc.GetString(StringID::ErrorTrayIcon),
                     loc.GetString(StringID::ErrorTitle),
                     MB_OK | MB_ICONWARNING);
-        DestroyWindow(m_window);
-        return;
+        return false;
     }
 
     m_trayIcon->SetEnabled(m_settings.IsEnabled());
@@ -192,6 +252,7 @@ void App::OnCreate() {
 
     Utils::SetTimerChecked(m_window, TIMER_ID_STATUS_REFRESH, STATUS_REFRESH_INTERVAL_MS);
     RefreshStatus();
+    return true;
 }
 
 void App::OnDestroy() {
@@ -213,6 +274,15 @@ void App::OnTimer(UINT_PTR timerId) {
     }
 
     if (timerId == TIMER_ID_STATUS_REFRESH) {
+        if (ExpireTimerIfNeeded()) {
+            return;
+        }
+        if (m_settings.IsEnabled()) {
+            const TimerConfig timer = m_settings.GetTimerConfig();
+            if (timer.mode != TimerMode::Indefinite && !m_expireTimerArmed) {
+                ArmExpireTimer(timer);
+            }
+        }
         UpdatePowerState();
         RefreshStatus();
         return;
@@ -235,30 +305,9 @@ void App::OnTimer(UINT_PTR timerId) {
 
     if (timerId == TIMER_ID_EXPIRE) {
         KillTimer(m_window, TIMER_ID_EXPIRE);
-
-        const TimerConfig timer = m_settings.GetTimerConfig();
-        if (timer.IsExpired()) {
-            m_settings.SetEnabled(false);
-
-            TimerConfig cleared = timer;
-            cleared.endTimeUtc = 0;
-            cleared.startTime = {};
-            cleared.monotonicDeadlineMs = 0;
-            m_settings.SetTimerConfig(cleared);
-
-            SaveSettings();
-            StopTimer();
-            UpdatePowerState();
-            if (m_trayIcon) {
-                m_trayIcon->SetEnabled(false);
-            }
-            RefreshStatus();
-
-            auto& loc = Localization::Instance();
-            m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
-                                         loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);
-        } else {
-            ArmExpireTimer(timer);
+        m_expireTimerArmed = false;
+        if (!ExpireTimerIfNeeded()) {
+            ArmExpireTimer(m_settings.GetTimerConfig());
             RefreshStatus();
         }
     }
@@ -411,31 +460,43 @@ void App::ShowSettings() {
         return;
     }
 
+    const Settings original = m_settings;
+    Settings staged = m_settings;
+    const bool originalAutoStart = Settings::IsAutoStartEnabled();
+
     m_isSettingsDialogOpen = true;
-    const bool accepted = m_settingsDialog->Show(m_window, m_settings);
+    const bool accepted = m_settingsDialog->Show(m_window, staged);
     m_isSettingsDialogOpen = false;
 
-    if (accepted) {
-        if (m_settings.IsEnabled()) {
-            TimerConfig timer = m_settings.GetTimerConfig();
-            if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
-                timer.ResetStartTime();
-                m_settings.SetTimerConfig(timer);
-                SaveSettings();
-            }
-
-            UpdatePowerState();
-            StartTimer();
-        } else {
-            UpdatePowerState();
-        }
-
-        if (m_trayIcon) {
-            m_trayIcon->SetEnabled(m_settings.IsEnabled());
-            RefreshStatus();
-        }
-        RegisterHotkey();
+    if (!accepted) {
+        Localization::Instance().SetLanguage(original.GetLanguage());
+        Settings::SetAutoStartEnabled(originalAutoStart);
+        Settings rollback = original;
+        rollback.SetDirty(true);
+        rollback.SaveToRegistry();
+        return;
     }
+
+    m_settings = staged;
+    if (m_settings.IsEnabled()) {
+        TimerConfig timer = m_settings.GetTimerConfig();
+        if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
+            timer.ResetStartTime();
+            m_settings.SetTimerConfig(timer);
+            SaveSettings();
+        }
+
+        UpdatePowerState();
+        StartTimer();
+    } else {
+        UpdatePowerState();
+    }
+
+    if (m_trayIcon) {
+        m_trayIcon->SetEnabled(m_settings.IsEnabled());
+        RefreshStatus();
+    }
+    RegisterHotkey();
 }
 
 void App::ShowAbout() {
@@ -462,6 +523,7 @@ void App::Exit() {
 void App::StartTimer() {
     KillTimer(m_window, TIMER_ID_KEYPRESS);
     KillTimer(m_window, TIMER_ID_EXPIRE);
+    m_expireTimerArmed = false;
 
     if (!m_settings.IsEnabled()) {
         return;
@@ -503,6 +565,7 @@ void App::StartTimer() {
 void App::StopTimer() {
     KillTimer(m_window, TIMER_ID_KEYPRESS);
     KillTimer(m_window, TIMER_ID_EXPIRE);
+    m_expireTimerArmed = false;
 }
 
 void App::RefreshStatus() {
@@ -515,8 +578,10 @@ void App::RefreshStatus() {
 
 PowerContext App::QueryPowerContext() const noexcept {
     SYSTEM_POWER_STATUS status = {};
-    if (!GetSystemPowerStatus(&status)) {
-        return {};
+    if (!GetSystemPowerStatus(&status) || status.ACLineStatus == 255) {
+        PowerContext unknown;
+        unknown.statusKnown = false;
+        return unknown;
     }
 
     PowerContext context;

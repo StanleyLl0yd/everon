@@ -83,6 +83,12 @@ int main() {
            "runtime deadline should be replaceable without changing persisted timer configuration");
     Expect(!settings.IsDirty(), "runtime deadline should not mark persistent settings dirty");
 
+    Settings snapshot = settings;
+    Settings staged = settings;
+    staged.SetKeepDisplayOn(!snapshot.GetKeepDisplayOn());
+    Expect(settings.GetKeepDisplayOn() == snapshot.GetKeepDisplayOn(),
+           "editing a staged settings copy should not mutate the live snapshot");
+
     if (g_failures == 0) {
         std::cout << "All Settings tests passed.\n";
         return 0;
