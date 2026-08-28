@@ -54,4 +54,11 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $report)) {
     throw "Coverage merge failed"
 }
 
-Write-Host "Coverage report: $report"
+[xml]$coverageXml = Get-Content $report -Raw
+$modules = @($coverageXml.SelectNodes("//*[local-name()='module']"))
+if ($modules.Count -eq 0) {
+    throw "Coverage report contains no instrumented modules"
+}
+
+$functions = @($coverageXml.SelectNodes("//*[local-name()='function']"))
+Write-Host "Coverage report: $report ($($modules.Count) modules, $($functions.Count) functions)"
