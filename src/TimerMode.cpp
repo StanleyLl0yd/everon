@@ -2,6 +2,8 @@
 
 namespace Everon {
 
+using LocalToUtcFn = bool (*)(const SYSTEMTIME&, SYSTEMTIME&) noexcept;
+
 static inline ULONGLONG FileTimeToUll(const FILETIME& ft) noexcept {
     ULARGE_INTEGER u;
     u.LowPart = ft.dwLowDateTime;
@@ -16,7 +18,6 @@ static inline ULONGLONG NowUtcFileTimeUll() noexcept {
 }
 
 static inline bool LocalToUtcSystemTime(const SYSTEMTIME& local, SYSTEMTIME& utc) noexcept {
-    // nullptr uses the current system time zone.
     return TzSpecificLocalTimeToSystemTime(nullptr, &local, &utc) != 0;
 }
 
@@ -89,9 +90,12 @@ static bool IsUntilNextDayAt(const SYSTEMTIME& nowLocal, const SYSTEMTIME& until
     return nowLocal.wSecond > 0 || nowLocal.wMilliseconds > 0;
 }
 
-static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
-    SYSTEMTIME nowLocal = {};
-    GetLocalTime(&nowLocal);
+static ULONGLONG ComputeNextUntilUtcAt(const SYSTEMTIME& nowLocal,
+                                       const SYSTEMTIME& untilTime,
+                                       LocalToUtcFn converter) noexcept {
+    if (!converter) {
+        return 0;
+    }
 
     SYSTEMTIME targetLocal = nowLocal;
     targetLocal.wHour = untilTime.wHour;
@@ -103,15 +107,13 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
         AddDaysLocal(targetLocal, 1);
     }
 
-    // DST transitions can make local times invalid; probe forward to the next valid minute.
     SYSTEMTIME targetUtc = {};
     SYSTEMTIME probeLocal = targetLocal;
-
-    bool ok = LocalToUtcSystemTime(probeLocal, targetUtc);
+    bool ok = converter(probeLocal, targetUtc);
     if (!ok) {
         for (int i = 0; i < 180 && !ok; ++i) {
             AddMinutesLocal(probeLocal, 1);
-            ok = LocalToUtcSystemTime(probeLocal, targetUtc);
+            ok = converter(probeLocal, targetUtc);
         }
     }
 
@@ -121,6 +123,20 @@ static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
 
     return UtcSystemTimeToFileTimeUll(targetUtc);
 }
+
+static ULONGLONG ComputeNextUntilUtc(const SYSTEMTIME& untilTime) noexcept {
+    SYSTEMTIME nowLocal = {};
+    GetLocalTime(&nowLocal);
+    return ComputeNextUntilUtcAt(nowLocal, untilTime, LocalToUtcSystemTime);
+}
+
+#ifdef EVERON_TESTING
+ULONGLONG ComputeNextUntilUtcForTesting(const SYSTEMTIME& nowLocal,
+                                        const SYSTEMTIME& untilTime,
+                                        LocalToUtcTestFn converter) noexcept {
+    return ComputeNextUntilUtcAt(nowLocal, untilTime, converter);
+}
+#endif
 
 static ULONGLONG ResolveTargetUtc(const TimerConfig& timer) noexcept {
     if (timer.endTimeUtc != 0) {
