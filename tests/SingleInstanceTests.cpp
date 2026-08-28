@@ -1,4 +1,5 @@
-#include <windows.h>
+#include <Windows.h>
+#include <format>
 #include <iostream>
 #include <string>
 
@@ -7,17 +8,17 @@
 int main() {
     using namespace Everon;
 
-    const std::wstring mutexName = L"Local\\Everon_Test_Mutex_" +
-                                   std::to_wstring(GetCurrentProcessId());
+    const std::wstring mutexName = std::format(
+        L"Local\\Everon_Test_Mutex_{}", GetCurrentProcessId());
 
     Utils::SingleInstanceGuard first(mutexName.c_str());
-    if (!first.IsFirstInstance()) {
+    const bool firstOwnsMutex = first.IsFirstInstance();
+    if (!firstOwnsMutex) {
         std::cerr << "FAILED: first guard should own a fresh mutex\n";
         return 1;
     }
 
-    Utils::SingleInstanceGuard second(mutexName.c_str());
-    if (second.IsFirstInstance()) {
+    if (Utils::SingleInstanceGuard second(mutexName.c_str()); second.IsFirstInstance()) {
         std::cerr << "FAILED: second guard should detect the existing mutex\n";
         return 1;
     }
