@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <Shobjidl.h>
+#include <shobjidl.h>
 #include "App.h"
 #include "Utils.h"
 #include "Localization.h"
@@ -8,11 +8,12 @@ using namespace Everon;
 
 int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE,
                     _In_ PWSTR, _In_ int) {
+    using enum StringID;
+
     SetCurrentProcessExplicitAppUserModelID(L"Everon");
 
-    Utils::SingleInstanceGuard guard(L"Local\\Everon_SingleInstance_Mutex");
-
-    if (!guard.IsFirstInstance()) {
+    if (Utils::SingleInstanceGuard guard(L"Local\\Everon_SingleInstance_Mutex");
+        !guard.IsFirstInstance()) {
         bool forwarded = false;
         for (int i = 0; i < 50; ++i) {
             if (HWND runningWindow = FindWindowW(App::WINDOW_CLASS_NAME, nullptr);
@@ -26,8 +27,8 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE,
         if (!forwarded) {
             const auto& loc = Localization::Instance();
             MessageBoxW(nullptr,
-                        loc.GetString(StringID::ErrorAlreadyRunning),
-                        loc.GetString(StringID::ErrorTitle),
+                        loc.GetString(ErrorAlreadyRunning),
+                        loc.GetString(ErrorTitle),
                         MB_OK | MB_ICONINFORMATION);
         }
         return 0;
