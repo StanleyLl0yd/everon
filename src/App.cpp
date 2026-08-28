@@ -45,6 +45,12 @@ bool App::SaveSettings() {
 }
 
 bool App::ArmExpireTimer(const TimerConfig& timer) {
+    if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {
+        m_expireTimerArmed = false;
+        DisableAfterTimerFailure();
+        return false;
+    }
+
     const DWORD remainingMs = timer.GetRemainingMilliseconds();
     if (remainingMs == 0) {
         m_expireTimerArmed = false;
@@ -553,6 +559,11 @@ void App::StartTimer() {
             timer.ResumeMonotonicDuration();
             m_settings.SetTimerRuntimeDeadline(timer.monotonicDeadlineMs);
         }
+    }
+
+    if (timer.endTimeUtc == 0) {
+        DisableAfterTimerFailure();
+        return;
     }
 
     m_settings.SetTimerConfig(timer);
