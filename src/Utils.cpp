@@ -1,22 +1,8 @@
 #include "Utils.h"
-#include <strsafe.h>
-#include <stdarg.h>
+#include <array>
+#include <format>
 
-namespace Everon {
-namespace Utils {
-
-#ifdef _DEBUG
-void DebugLog(const wchar_t* format, ...) {
-    wchar_t buffer[512] = {};
-
-    va_list args;
-    va_start(args, format);
-    StringCchVPrintfW(buffer, _countof(buffer), format, args);
-    va_end(args);
-
-    OutputDebugStringW(buffer);
-}
-#endif
+namespace Everon::Utils {
 
 bool CheckWinApiBool(BOOL result, const wchar_t* apiName) {
     if (result) {
@@ -24,7 +10,7 @@ bool CheckWinApiBool(BOOL result, const wchar_t* apiName) {
     }
 
     const wchar_t* name = (apiName && *apiName) ? apiName : L"(unknown)";
-    DebugLog(L"[Everon][WinAPI] %s failed. GetLastError=%lu\n", name, GetLastError());
+    DebugLog(L"[Everon][WinAPI] {} failed. GetLastError={}\n", name, GetLastError());
     return false;
 }
 
@@ -34,7 +20,7 @@ bool CheckWinApiStatus(LONG status, const wchar_t* apiName) {
     }
 
     const wchar_t* name = (apiName && *apiName) ? apiName : L"(unknown)";
-    DebugLog(L"[Everon][WinAPI] %s failed. Status=%ld\n", name, status);
+    DebugLog(L"[Everon][WinAPI] {} failed. Status={}\n", name, status);
     return false;
 }
 
@@ -55,14 +41,15 @@ bool ShellNotifyIconChecked(DWORD message, PNOTIFYICONDATAW data, const wchar_t*
             case NIM_MODIFY: msgName = L"Shell_NotifyIconW(NIM_MODIFY)"; break;
             case NIM_DELETE: msgName = L"Shell_NotifyIconW(NIM_DELETE)"; break;
             case NIM_SETVERSION: msgName = L"Shell_NotifyIconW(NIM_SETVERSION)"; break;
+            default: break;
         }
 
         if (context && *context) {
-            DebugLog(L"[Everon][WinAPI] %s failed (%s). GetLastError=%lu\n",
-                    msgName, context, GetLastError());
+            DebugLog(L"[Everon][WinAPI] {} failed ({}). GetLastError={}\n",
+                     msgName, context, GetLastError());
         } else {
-            DebugLog(L"[Everon][WinAPI] %s failed. GetLastError=%lu\n",
-                    msgName, GetLastError());
+            DebugLog(L"[Everon][WinAPI] {} failed. GetLastError={}\n",
+                     msgName, GetLastError());
         }
     }
     return ok != 0;
@@ -77,7 +64,7 @@ void CenterWindowOnMonitor(HWND window, HWND referenceWindow) {
     const int width = rect.right - rect.left;
     const int height = rect.bottom - rect.top;
 
-    HMONITOR monitor = MonitorFromWindow(
+    const auto monitor = MonitorFromWindow(
         referenceWindow ? referenceWindow : window,
         MONITOR_DEFAULTTONEAREST
     );
@@ -98,7 +85,7 @@ void CenterWindowOnMonitor(HWND window, HWND referenceWindow) {
     y = max(workArea.top, min(y, workArea.bottom - height));
 
     SetWindowPos(window, nullptr, x, y, 0, 0,
-                SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
+                 SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
 std::wstring GetKeyName(UINT virtualKey) {
@@ -125,12 +112,11 @@ std::wstring GetKeyName(UINT virtualKey) {
         case VK_SNAPSHOT:   return L"PrintScreen";
         case VK_INSERT:     return L"Insert";
         case VK_DELETE:     return L"Delete";
+        default:            break;
     }
 
     if (virtualKey >= VK_F1 && virtualKey <= VK_F24) {
-        wchar_t buffer[8];
-        swprintf_s(buffer, L"F%u", virtualKey - VK_F1 + 1);
-        return buffer;
+        return std::format(L"F{}", virtualKey - VK_F1 + 1);
     }
 
     if ((virtualKey >= '0' && virtualKey <= '9') || (virtualKey >= 'A' && virtualKey <= 'Z')) {
@@ -138,19 +124,16 @@ std::wstring GetKeyName(UINT virtualKey) {
     }
 
     if (virtualKey >= VK_NUMPAD0 && virtualKey <= VK_NUMPAD9) {
-        wchar_t buffer[16];
-        swprintf_s(buffer, L"Num%u", virtualKey - VK_NUMPAD0);
-        return buffer;
+        return std::format(L"Num{}", virtualKey - VK_NUMPAD0);
     }
 
-    UINT scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC);
-    wchar_t buffer[64] = {};
-    if (GetKeyNameTextW(scanCode << 16, buffer, 64) > 0) {
-        return buffer;
+    const auto scanCode = MapVirtualKeyW(virtualKey, MAPVK_VK_TO_VSC);
+    std::array<wchar_t, 64> buffer{};
+    if (GetKeyNameTextW(scanCode << 16, buffer.data(), static_cast<int>(buffer.size())) > 0) {
+        return buffer.data();
     }
 
-    swprintf_s(buffer, L"Key%02X", virtualKey & 0xFFU);
-    return buffer;
+    return std::format(L"Key{:02X}", virtualKey & 0xFFU);
 }
 
 SingleInstanceGuard::SingleInstanceGuard(const wchar_t* mutexName) {
@@ -176,5 +159,4 @@ SingleInstanceGuard::~SingleInstanceGuard() {
     }
 }
 
-}
 }
