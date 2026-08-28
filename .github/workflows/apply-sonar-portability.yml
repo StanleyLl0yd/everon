@@ -1,0 +1,54 @@
+name: Apply Sonar portability cleanup
+
+on:
+  push:
+    branches:
+      - codex/sonar-audit
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message == 'Run Sonar portability cleanup'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/sonar-audit
+          fetch-depth: 0
+      - name: Normalize Windows SDK include paths
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          replacements = {
+              '<Windows.h>': '<windows.h>',
+              '<CommCtrl.h>': '<commctrl.h>',
+              '<ShObjIdl.h>': '<shobjidl.h>',
+          }
+          changed = []
+          for root in (Path('src'), Path('tests')):
+              for path in root.rglob('*'):
+                  if path.suffix.lower() not in {'.cpp', '.h'}:
+                      continue
+                  text = path.read_text(encoding='utf-8')
+                  updated = text
+                  for old, new in replacements.items():
+                      updated = updated.replace(old, new)
+                  if updated != text:
+                      path.write_text(updated, encoding='utf-8')
+                      changed.append(str(path))
+          if not changed:
+              raise SystemExit('No include paths needed normalization')
+          print('\n'.join(changed))
+          PY
+      - name: Commit source changes
+        shell: bash
+        run: |
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src tests
+          git commit -m "Normalize Windows SDK include paths"
+          git push origin HEAD:codex/sonar-audit
