@@ -341,10 +341,14 @@ bool Settings::SaveToRegistry() {
     };
 
     auto WriteString = [hKey](const wchar_t* name, const wchar_t* value) -> bool {
-        DWORD size = static_cast<DWORD>((wcslen(value) + 1) * sizeof(wchar_t));
-        const LONG res = RegSetValueExW(hKey, name, 0, REG_SZ,
-                                        reinterpret_cast<const BYTE*>(value),
-                                        size);
+        if (value == nullptr) {
+            Utils::DebugLog(L"[Everon][Reg] Refusing null string value '%s'\n", name);
+            return false;
+        }
+        const auto stored = std::wstring(value);
+        const auto size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
+        const LONG res = RegSetKeyValueW(hKey, nullptr, name, REG_SZ,
+                                         stored.c_str(), size);
         if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_SZ)")) {
             Utils::DebugLog(L"[Everon][Reg] Failed to write string value '%s'\n", name);
             return false;

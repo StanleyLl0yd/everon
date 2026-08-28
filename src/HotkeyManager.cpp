@@ -84,7 +84,7 @@ std::wstring HotkeyManager::HotkeyToString(const HotkeyConfig& config) {
 HotkeyConfig HotkeyManager::StringToHotkey(const wchar_t* str) {
     HotkeyConfig config;
 
-    if (!str || wcslen(str) == 0) {
+    if (!str || *str == L'\0') {
         return config;
     }
 
