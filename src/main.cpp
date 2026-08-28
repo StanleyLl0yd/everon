@@ -15,8 +15,8 @@ int WINAPI wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE,
     if (!guard.IsFirstInstance()) {
         bool forwarded = false;
         for (int i = 0; i < 50; ++i) {
-            HWND runningWindow = FindWindowW(App::WINDOW_CLASS_NAME, nullptr);
-            if (runningWindow && PostMessageW(runningWindow, App::WM_SHOW_SETTINGS, 0, 0)) {
+            if (HWND runningWindow = FindWindowW(App::WINDOW_CLASS_NAME, nullptr);
+                runningWindow && PostMessageW(runningWindow, App::WM_SHOW_SETTINGS, 0, 0)) {
                 forwarded = true;
                 break;
             }
