@@ -12,42 +12,14 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect Sonar main state
+      - name: List Sonar main issues
         shell: bash
         run: |
           set -euo pipefail
-          base='https://sonarcloud.io/api'
-          project='StanleyLl0yd_everon'
-
-          echo '=== New code period ==='
-          curl --fail --silent --show-error --get "$base/new_code_periods/show" \
-            --data-urlencode "project=$project" \
-            --data-urlencode 'branch=main' | jq . || true
-
-          echo '=== Quality gate ==='
-          curl --fail --silent --show-error --get "$base/qualitygates/project_status" \
-            --data-urlencode "projectKey=$project" \
-            --data-urlencode 'branch=main' | jq .
-
-          echo '=== Main measures ==='
-          curl --fail --silent --show-error --get "$base/measures/component" \
-            --data-urlencode "component=$project" \
-            --data-urlencode 'branch=main' \
-            --data-urlencode 'metricKeys=bugs,vulnerabilities,code_smells,security_hotspots,reliability_rating,security_rating,sqale_rating,new_bugs,new_vulnerabilities,new_code_smells,new_reliability_rating,new_security_rating,new_maintainability_rating' | jq .
-
-          echo '=== Issue facets ==='
-          curl --fail --silent --show-error --get "$base/issues/search" \
-            --data-urlencode "componentKeys=$project" \
-            --data-urlencode 'branch=main' \
-            --data-urlencode 'resolved=false' \
-            --data-urlencode 'ps=1' \
-            --data-urlencode 'facets=severities,types,rules,cleanCodeAttributeCategories,impactSoftwareQualities' \
-            | jq '{total, facets}'
-
-          echo '=== Issues by rule and file ==='
-          curl --fail --silent --show-error --get "$base/issues/search" \
-            --data-urlencode "componentKeys=$project" \
+          curl --fail --silent --show-error --get \
+            'https://sonarcloud.io/api/issues/search' \
+            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
             --data-urlencode 'branch=main' \
             --data-urlencode 'resolved=false' \
             --data-urlencode 'ps=500' \
-            | jq '{total, by_rule: ([.issues[] | .rule] | group_by(.) | map({rule: .[0], count: length}) | sort_by(-.count)), by_component: ([.issues[] | .component] | group_by(.) | map({component: .[0], count: length}) | sort_by(-.count)), sample: [.issues[:25][] | {key,rule,severity,type,component,line,message,creationDate,cleanCodeAttribute,impacts}]}'
+            | jq -r '.issues[] | [.rule, .severity, (.component | sub("StanleyLl0yd_everon:"; "")), (.line // 0), .message] | @tsv'
