@@ -346,7 +346,7 @@ bool Settings::SaveToRegistry() {
             return false;
         }
         const auto stored = std::wstring(value);
-        const DWORD size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
+        const auto size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
         const LONG res = RegSetKeyValueW(hKey, nullptr, name, REG_SZ,
                                          stored.c_str(), size);
         if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_SZ)")) {
