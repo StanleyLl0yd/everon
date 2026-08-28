@@ -1,4 +1,4 @@
-name: Sonar PR17 diagnostics
+name: Apply PR17 Sonar cleanup
 
 on:
   push:
@@ -6,19 +6,24 @@ on:
       - codex/security-hotspots
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
-    if: github.event.head_commit.message == 'Inspect PR17 Sonar issues'
+  fix:
+    if: github.event.head_commit.message == 'Run PR17 Sonar cleanup'
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Sonar PR issues
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/security-hotspots
+          fetch-depth: 0
+      - name: Apply cleanup
+        run: python scripts/fix-pr17-sonar.py
+      - name: Commit source change
         run: |
-          curl --fail --silent --show-error --get \
-            'https://sonarcloud.io/api/issues/search' \
-            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
-            --data-urlencode 'pullRequest=17' \
-            --data-urlencode 'resolved=false' \
-            --data-urlencode 'ps=100' \
-            | jq '{total, issues: [.issues[] | {key, rule, severity, type, component, line, message, impacts}]}'
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src/Settings.cpp
+          git commit -m "Clean up registry string write"
+          git push origin HEAD:codex/security-hotspots
