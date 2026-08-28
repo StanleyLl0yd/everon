@@ -230,16 +230,18 @@ std::wstring ExpandRegistryString(std::wstring_view value) {
     return std::wstring(expanded.data());
 }
 
-std::wstring ExtractExecutableToken(const std::wstring& command) {
+std::wstring ExtractExecutableToken(std::wstring_view command) {
     if (command.empty()) {
         return {};
     }
     if (command.front() == L'"') {
         const auto end = command.find(L'"', 1);
-        return end == std::wstring::npos ? std::wstring{} : command.substr(1, end - 1);
+        return end == std::wstring_view::npos
+            ? std::wstring{}
+            : std::wstring(command.substr(1, end - 1));
     }
     const auto end = command.find_first_of(L" \t");
-    return command.substr(0, end);
+    return std::wstring(command.substr(0, end));
 }
 
 }
