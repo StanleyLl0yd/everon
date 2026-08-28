@@ -123,7 +123,7 @@ void App::DisableAfterTimerFailure() {
 
     if (m_trayIcon) {
         m_trayIcon->SetEnabled(false);
-        auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::ErrorTimerState), NIIF_WARNING);
     }

@@ -429,8 +429,9 @@ bool Settings::IsAutoStartEnabled() {
 
     std::vector<wchar_t> value((size / sizeof(wchar_t)) + 1, L'\0');
     DWORD readSize = size;
-    result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,
-                              reinterpret_cast<LPBYTE>(value.data()), &readSize);
+    result = RegGetValueW(hKey, nullptr, APP_NAME,
+                          RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND,
+                          &type, value.data(), &readSize);
     const LONG closeRes = RegCloseKey(hKey);
     Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\Run)");
     if (result != ERROR_SUCCESS) {

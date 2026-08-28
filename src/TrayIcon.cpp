@@ -5,6 +5,8 @@
 #include "TimerMode.h"
 #include "resource.h"
 #include <strsafe.h>
+#include <array>
+#include <string_view>
 
 #ifndef NIF_SHOWTIP
 #define NIF_SHOWTIP 0x00000080
@@ -184,10 +186,10 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
         ? loc.GetString(StringID::TooltipEnabled)
         : loc.GetString(StringID::TooltipDisabled);
 
-    auto append = [&status](const std::wstring& value) {
+    auto append = [&status](std::wstring_view value) {
         if (!value.empty()) {
-            status += L" \x2022 ";
-            status += value;
+            status += L" • ";
+            status.append(value);
         }
     };
 
@@ -205,11 +207,11 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
         const WORD vk = settings.GetVirtualKey();
         const DWORD period = settings.GetPeriodSec();
         if (vk != 0 && period > 0) {
-            wchar_t part[64] = {};
-            StringCchPrintfW(part, _countof(part), L"%s/%lu%c",
+            std::array<wchar_t, 64> part{};
+            StringCchPrintfW(part.data(), part.size(), L"%s/%lu%c",
                              Utils::GetKeyName(vk).c_str(),
                              static_cast<unsigned long>(period), secUnit);
-            append(part);
+            append(part.data());
         }
 
         if (displayKeepAwakeActive) {
@@ -224,32 +226,32 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
                 DWORD minutes = (remaining + 59U) / 60U;
                 const DWORD hours = minutes / 60;
                 minutes %= 60;
-                wchar_t part[96] = {};
+                std::array<wchar_t, 96> part{};
                 if (hours > 0) {
-                    StringCchPrintfW(part, _countof(part), L"%s %lu%c %02lu%c",
+                    StringCchPrintfW(part.data(), part.size(), L"%s %lu%c %02lu%c",
                                      loc.GetString(StringID::SettingsTimer),
                                      static_cast<unsigned long>(hours), hourUnit,
                                      static_cast<unsigned long>(minutes), minUnit);
                 } else {
-                    StringCchPrintfW(part, _countof(part), L"%s %lu%c",
+                    StringCchPrintfW(part.data(), part.size(), L"%s %lu%c",
                                      loc.GetString(StringID::SettingsTimer),
                                      static_cast<unsigned long>(minutes), minUnit);
                 }
-                append(part);
+                append(part.data());
             }
         } else if (timer.mode == TimerMode::UntilTime) {
-            wchar_t part[128] = {};
+            std::array<wchar_t, 128> part{};
             if (timer.IsUntilNextDay()) {
-                StringCchPrintfW(part, _countof(part), L"%s %s %02d:%02d",
+                StringCchPrintfW(part.data(), part.size(), L"%s %s %02d:%02d",
                                  loc.GetString(StringID::SettingsTimerUntil),
                                  loc.GetString(StringID::SettingsTimerTomorrow),
                                  timer.untilTime.wHour, timer.untilTime.wMinute);
             } else {
-                StringCchPrintfW(part, _countof(part), L"%s %02d:%02d",
+                StringCchPrintfW(part.data(), part.size(), L"%s %02d:%02d",
                                  loc.GetString(StringID::SettingsTimerUntil),
                                  timer.untilTime.wHour, timer.untilTime.wMinute);
             }
-            append(part);
+            append(part.data());
         }
     }
 
