@@ -156,7 +156,7 @@ bool WriteQwordValue(HKEY key, const wchar_t* name, ULONGLONG value) {
 }
 
 bool WriteStringValue(HKEY key, const wchar_t* name, std::wstring_view value) {
-    const auto stored = std::wstring(value);
+    const std::wstring stored(value);
     const auto size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
     const LONG result = RegSetKeyValueW(key, nullptr, name, REG_SZ,
                                         stored.c_str(), size);
@@ -184,29 +184,26 @@ void RecoverLegacyDurationEndTime(TimerConfig& timer) {
         return;
     }
 
-    ULARGE_INTEGER value{};
-    value.LowPart = startFt.dwLowDateTime;
-    value.HighPart = startFt.dwHighDateTime;
-    timer.endTimeUtc = value.QuadPart +
+    const ULONGLONG startValue =
+        (static_cast<ULONGLONG>(startFt.dwHighDateTime) << 32U) |
+        static_cast<ULONGLONG>(startFt.dwLowDateTime);
+    timer.endTimeUtc = startValue +
         (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
 }
 
 TimerConfig ReadTimerConfig(HKEY key, TimerConfig timer) {
-    DWORD mode = 0;
-    if (ReadDwordValue(key, L"TimerMode", mode)) {
+    if (DWORD mode = 0; ReadDwordValue(key, L"TimerMode", mode)) {
         timer.mode = static_cast<TimerMode>(mode);
     }
 
-    DWORD duration = timer.durationMinutes;
-    if (ReadDwordValue(key, L"TimerDuration", duration)) {
+    if (DWORD duration = timer.durationMinutes; ReadDwordValue(key, L"TimerDuration", duration)) {
         timer.durationMinutes = duration;
     }
 
     ReadSystemTimeValue(key, L"TimerUntilTime", timer.untilTime);
     ReadSystemTimeValue(key, L"TimerStartTime", timer.startTime);
 
-    ULONGLONG endUtc = 0;
-    if (ReadQwordValue(key, L"TimerEndUtc", endUtc)) {
+    if (ULONGLONG endUtc = 0; ReadQwordValue(key, L"TimerEndUtc", endUtc)) {
         timer.endTimeUtc = endUtc;
     } else {
         RecoverLegacyDurationEndTime(timer);
@@ -219,15 +216,16 @@ TimerConfig ReadTimerConfig(HKEY key, TimerConfig timer) {
     return timer;
 }
 
-std::wstring ExpandRegistryString(const std::wstring& value) {
-    const DWORD needed = ExpandEnvironmentStringsW(value.c_str(), nullptr, 0);
+std::wstring ExpandRegistryString(std::wstring_view value) {
+    const std::wstring source(value);
+    const DWORD needed = ExpandEnvironmentStringsW(source.c_str(), nullptr, 0);
     if (needed == 0) {
-        return value;
+        return source;
     }
 
     std::vector<wchar_t> expanded(needed, L'\0');
-    if (ExpandEnvironmentStringsW(value.c_str(), expanded.data(), needed) == 0) {
-        return value;
+    if (ExpandEnvironmentStringsW(source.c_str(), expanded.data(), needed) == 0) {
+        return source;
     }
     return std::wstring(expanded.data());
 }
@@ -351,8 +349,9 @@ bool Settings::IsValidVirtualKey(WORD vk) const noexcept {
 
 bool Settings::LoadFromRegistry() {
     HKEY rawKey = nullptr;
-    const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0, KEY_READ, &rawKey);
-    if (openResult != ERROR_SUCCESS) {
+    if (const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0,
+                                               KEY_READ, &rawKey);
+        openResult != ERROR_SUCCESS) {
         if (openResult != ERROR_FILE_NOT_FOUND) {
             Utils::CheckWinApiStatus(openResult, L"RegOpenKeyExW(settings)");
         }
@@ -412,9 +411,9 @@ bool Settings::SaveToRegistry() {
     }
 
     HKEY rawKey = nullptr;
-    const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0, nullptr, 0,
-                                               KEY_WRITE, nullptr, &rawKey, nullptr);
-    if (!Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(settings)")) {
+    if (const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0,
+                                                   nullptr, 0, KEY_WRITE, nullptr, &rawKey, nullptr);
+        !Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(settings)")) {
         return false;
     }
     RegistryKey key(rawKey);
@@ -449,8 +448,8 @@ bool Settings::SaveToRegistry() {
 
 bool Settings::IsAutoStartEnabled() {
     HKEY rawKey = nullptr;
-    const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, KEY_READ, &rawKey);
-    if (openResult != ERROR_SUCCESS) {
+    if (const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, KEY_READ, &rawKey);
+        openResult != ERROR_SUCCESS) {
         if (openResult != ERROR_FILE_NOT_FOUND) {
             Utils::CheckWinApiStatus(openResult, L"RegOpenKeyExW(HKCU\\Run)");
         }
@@ -501,9 +500,9 @@ bool Settings::IsAutoStartEnabled() {
 
 bool Settings::SetAutoStartEnabled(bool enable) {
     HKEY rawKey = nullptr;
-    const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, nullptr, 0,
-                                               KEY_WRITE, nullptr, &rawKey, nullptr);
-    if (!Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(HKCU\\Run)")) {
+    if (const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, nullptr, 0,
+                                                   KEY_WRITE, nullptr, &rawKey, nullptr);
+        !Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(HKCU\\Run)")) {
         return false;
     }
     RegistryKey key(rawKey);
