@@ -1,4 +1,4 @@
-name: Apply Sonar fixes
+name: Sonar PR diagnostics
 
 on:
   push:
@@ -6,27 +6,22 @@ on:
       - codex/audit-fixes
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  fix:
-    if: github.event.head_commit.message == 'Run staged Sonar fixes'
+  inspect:
+    if: github.event.head_commit.message == 'Inspect Sonar security findings'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: codex/audit-fixes
-          fetch-depth: 0
-
-      - name: Apply fixes
-        run: python scripts/fix-sonar-pr.py
-
-      - name: Commit source changes
+      - name: Fetch Sonar findings
+        shell: bash
         run: |
           set -euo pipefail
-          git config user.name "Stanley Lloyd"
-          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
-          git add src/App.cpp src/Settings.cpp src/TrayIcon.cpp src/Version.h
-          git commit -m "Resolve Sonar reliability findings"
-          git push origin HEAD:codex/audit-fixes
+          sleep 20
+          curl --fail --silent --show-error --get \
+            'https://sonarcloud.io/api/issues/search' \
+            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
+            --data-urlencode 'pullRequest=15' \
+            --data-urlencode 'resolved=false' \
+            --data-urlencode 'ps=100' \
+            | jq '{total, issues: [.issues[] | {key, rule, severity, type, component, line, message, impacts}]}'
