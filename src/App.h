@@ -44,6 +44,7 @@ private:
     bool ArmExpireTimer(const TimerConfig& timer);
     bool ExpireTimerIfNeeded();
     void DisableAfterTimerFailure();
+    void NotifyKeyPressFailure();
     void RefreshStatus();
     PowerContext QueryPowerContext() const noexcept;
     bool UpdatePowerState();
@@ -59,6 +60,7 @@ private:
     std::unique_ptr<HotkeyManager> m_hotkeyManager;
     bool m_isSettingsDialogOpen = false;
     bool m_powerFailureNotified = false;
+    bool m_keyPressFailureNotified = false;
     bool m_pausedByBatterySaver = false;
     bool m_expireTimerArmed = false;
 
