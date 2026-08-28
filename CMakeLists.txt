@@ -25,6 +25,19 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(EVERON_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+
+function(everon_configure_target target)
+    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
+        if(EVERON_WARNINGS_AS_ERRORS)
+            target_compile_options(${target} PRIVATE /WX)
+        endif()
+        target_link_options(${target} PRIVATE /guard:cf /CETCOMPAT)
+    endif()
+endfunction()
+
 set(EVERON_SOURCES
     src/main.cpp
     src/App.cpp
@@ -43,14 +56,11 @@ set(EVERON_SOURCES
 
 add_executable(Everon WIN32 ${EVERON_SOURCES})
 target_include_directories(Everon PRIVATE src)
-target_compile_definitions(Everon PRIVATE UNICODE _UNICODE)
 target_link_libraries(Everon PRIVATE comctl32 shell32 advapi32)
+everon_configure_target(Everon)
 
 if(MSVC)
-    target_compile_options(Everon PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
     target_link_options(Everon PRIVATE
-        /guard:cf
-        /CETCOMPAT
         /MANIFEST:EMBED
         "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/src/app.manifest"
     )
@@ -66,13 +76,8 @@ if(BUILD_TESTING)
         src/TimerMode.cpp
     )
     target_include_directories(TimerModeTests PRIVATE src)
-    target_compile_definitions(TimerModeTests PRIVATE UNICODE _UNICODE)
-
-    if(MSVC)
-        target_compile_options(TimerModeTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
-        target_link_options(TimerModeTests PRIVATE /guard:cf /CETCOMPAT)
-    endif()
-
+    target_compile_definitions(TimerModeTests PRIVATE EVERON_TESTING)
+    everon_configure_target(TimerModeTests)
     add_test(NAME TimerModeTests COMMAND TimerModeTests)
 
     add_executable(HotkeyManagerTests
@@ -81,11 +86,7 @@ if(BUILD_TESTING)
         src/Utils.cpp
     )
     target_include_directories(HotkeyManagerTests PRIVATE src)
-    target_compile_definitions(HotkeyManagerTests PRIVATE UNICODE _UNICODE)
-    if(MSVC)
-        target_compile_options(HotkeyManagerTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
-        target_link_options(HotkeyManagerTests PRIVATE /guard:cf /CETCOMPAT)
-    endif()
+    everon_configure_target(HotkeyManagerTests)
     add_test(NAME HotkeyManagerTests COMMAND HotkeyManagerTests)
 
     add_executable(SettingsTests
@@ -97,12 +98,9 @@ if(BUILD_TESTING)
         src/Utils.cpp
     )
     target_include_directories(SettingsTests PRIVATE src)
-    target_compile_definitions(SettingsTests PRIVATE UNICODE _UNICODE)
+    target_compile_definitions(SettingsTests PRIVATE EVERON_TESTING)
     target_link_libraries(SettingsTests PRIVATE advapi32)
-    if(MSVC)
-        target_compile_options(SettingsTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
-        target_link_options(SettingsTests PRIVATE /guard:cf /CETCOMPAT)
-    endif()
+    everon_configure_target(SettingsTests)
     add_test(NAME SettingsTests COMMAND SettingsTests)
 
     add_executable(PowerManagerTests
@@ -111,21 +109,14 @@ if(BUILD_TESTING)
         src/Utils.cpp
     )
     target_include_directories(PowerManagerTests PRIVATE src)
-    target_compile_definitions(PowerManagerTests PRIVATE UNICODE _UNICODE)
-    if(MSVC)
-        target_compile_options(PowerManagerTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
-        target_link_options(PowerManagerTests PRIVATE /guard:cf /CETCOMPAT)
-    endif()
+    everon_configure_target(PowerManagerTests)
     add_test(NAME PowerManagerTests COMMAND PowerManagerTests)
 
     add_executable(PowerPolicyTests
         tests/PowerPolicyTests.cpp
     )
     target_include_directories(PowerPolicyTests PRIVATE src)
-    if(MSVC)
-        target_compile_options(PowerPolicyTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
-        target_link_options(PowerPolicyTests PRIVATE /guard:cf /CETCOMPAT)
-    endif()
+    everon_configure_target(PowerPolicyTests)
     add_test(NAME PowerPolicyTests COMMAND PowerPolicyTests)
 
     add_executable(LocalizationTests
@@ -133,10 +124,22 @@ if(BUILD_TESTING)
         src/Localization.cpp
     )
     target_include_directories(LocalizationTests PRIVATE src)
-    target_compile_definitions(LocalizationTests PRIVATE UNICODE _UNICODE)
-    if(MSVC)
-        target_compile_options(LocalizationTests PRIVATE /W4 /permissive- /utf-8 /sdl /guard:cf)
-        target_link_options(LocalizationTests PRIVATE /guard:cf /CETCOMPAT)
-    endif()
+    everon_configure_target(LocalizationTests)
     add_test(NAME LocalizationTests COMMAND LocalizationTests)
+
+    add_executable(OwnershipTests
+        tests/OwnershipTests.cpp
+    )
+    target_include_directories(OwnershipTests PRIVATE src)
+    everon_configure_target(OwnershipTests)
+    add_test(NAME OwnershipTests COMMAND OwnershipTests)
+
+    add_executable(SingleInstanceTests
+        tests/SingleInstanceTests.cpp
+        src/Utils.cpp
+    )
+    target_include_directories(SingleInstanceTests PRIVATE src)
+    target_link_libraries(SingleInstanceTests PRIVATE shell32)
+    everon_configure_target(SingleInstanceTests)
+    add_test(NAME SingleInstanceTests COMMAND SingleInstanceTests)
 endif()
