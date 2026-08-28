@@ -1,4 +1,4 @@
-name: Sonar hotspot diagnostics
+name: Apply Sonar hotspot fix
 
 on:
   push:
@@ -6,20 +6,65 @@ on:
       - codex/security-hotspots
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  fix:
+    if: github.event.head_commit.message == 'Apply Sonar hotspot fix'
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Sonar security hotspots
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/security-hotspots
+          fetch-depth: 0
+
+      - name: Harden registry string write
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/Settings.cpp')
+          text = path.read_text(encoding='utf-8')
+          old = '''    auto WriteString = [hKey](const wchar_t* name, const wchar_t* value) -> bool {
+        DWORD size = static_cast<DWORD>((wcslen(value) + 1) * sizeof(wchar_t));
+        const LONG res = RegSetValueExW(hKey, name, 0, REG_SZ,
+                                        reinterpret_cast<const BYTE*>(value),
+                                        size);
+        if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_SZ)")) {
+            Utils::DebugLog(L"[Everon][Reg] Failed to write string value '%s'\\n", name);
+            return false;
+        }
+        return true;
+    };
+'''
+          new = '''    auto WriteString = [hKey](const wchar_t* name, const wchar_t* value) -> bool {
+        if (value == nullptr) {
+            Utils::DebugLog(L"[Everon][Reg] Refusing null string value '%s'\\n", name);
+            return false;
+        }
+        const std::wstring stored(value);
+        const DWORD size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
+        const LONG res = RegSetValueExW(hKey, name, 0, REG_SZ,
+                                        reinterpret_cast<const BYTE*>(stored.c_str()),
+                                        size);
+        if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_SZ)")) {
+            Utils::DebugLog(L"[Everon][Reg] Failed to write string value '%s'\\n", name);
+            return false;
+        }
+        return true;
+    };
+'''
+          if old not in text:
+              raise SystemExit('Settings WriteString block not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+      - name: Commit source change
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --get \
-            'https://sonarcloud.io/api/hotspots/search' \
-            --data-urlencode 'projectKey=StanleyLl0yd_everon' \
-            --data-urlencode 'branch=main' \
-            --data-urlencode 'status=TO_REVIEW' \
-            --data-urlencode 'ps=100' \
-            | jq '{paging, hotspots: [.hotspots[] | {key, component, line, message, vulnerabilityProbability, securityCategory, status}]}'
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src/Settings.cpp
+          git commit -m "Harden registry string writes"
+          git push origin HEAD:codex/security-hotspots
