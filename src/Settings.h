@@ -17,6 +17,9 @@ public:
     static constexpr DWORD DEFAULT_PERIOD_SEC = 59;
 
     Settings();
+#ifdef EVERON_TESTING
+    explicit Settings(const wchar_t* registryKeyPath);
+#endif
 
     DWORD GetPeriodSec() const noexcept { return m_periodSec; }
     WORD GetVirtualKey() const noexcept { return m_vkKey; }
@@ -66,6 +69,7 @@ private:
     HotkeyConfig m_hotkeyConfig = {};
     TimerConfig m_timerConfig = {};
     bool m_dirty = true;
+    std::wstring m_registryKeyPath = REG_KEY_PATH;
 
     static constexpr const wchar_t* REG_KEY_PATH = L"Software\\Everon";
     static constexpr const wchar_t* RUN_KEY_PATH = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";

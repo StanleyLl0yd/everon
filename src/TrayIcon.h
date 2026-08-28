@@ -17,6 +17,11 @@ public:
     explicit TrayIcon(HWND parentWindow, HINSTANCE instance);
     ~TrayIcon();
 
+    TrayIcon(const TrayIcon&) = delete;
+    TrayIcon& operator=(const TrayIcon&) = delete;
+    TrayIcon(TrayIcon&&) = delete;
+    TrayIcon& operator=(TrayIcon&&) = delete;
+
     bool Add();
     bool ReAdd();
     void Remove();

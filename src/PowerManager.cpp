@@ -1,5 +1,6 @@
 #include "PowerManager.h"
 #include "Utils.h"
+#include <array>
 
 namespace Everon {
 
@@ -42,13 +43,12 @@ bool PowerManager::AllowSleep() {
     return true;
 }
 
-void PowerManager::SendKeyPress(WORD virtualKey) {
+bool PowerManager::SendKeyPress(WORD virtualKey) const {
     if (virtualKey == 0) {
-        return;
+        return true;
     }
 
-    INPUT inputs[2] = {};
-
+    std::array<INPUT, 2> inputs{};
     inputs[0].type = INPUT_KEYBOARD;
     inputs[0].ki.wVk = virtualKey;
 
@@ -56,10 +56,12 @@ void PowerManager::SendKeyPress(WORD virtualKey) {
     inputs[1].ki.wVk = virtualKey;
     inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 
-    const UINT sent = SendInput(2, inputs, sizeof(INPUT));
-    if (sent != 2) {
+    if (const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+        sent != static_cast<UINT>(inputs.size())) {
         Utils::DebugLog(L"[Everon] SendInput failed/sent %u: %lu\n", sent, GetLastError());
+        return false;
     }
+    return true;
 }
 
 }

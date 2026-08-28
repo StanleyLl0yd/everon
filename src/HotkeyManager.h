@@ -17,14 +17,14 @@ struct HotkeyConfig {
                (modifiers & ~kAllowedModifiers) == 0;
     }
 
-    bool operator==(const HotkeyConfig& other) const {
-        return enabled == other.enabled &&
-               modifiers == other.modifiers &&
-               virtualKey == other.virtualKey;
+    friend bool operator==(const HotkeyConfig& lhs, const HotkeyConfig& rhs) {
+        return lhs.enabled == rhs.enabled &&
+               lhs.modifiers == rhs.modifiers &&
+               lhs.virtualKey == rhs.virtualKey;
     }
 
-    bool operator!=(const HotkeyConfig& other) const {
-        return !(*this == other);
+    friend bool operator!=(const HotkeyConfig& lhs, const HotkeyConfig& rhs) {
+        return !(lhs == rhs);
     }
 };
 
@@ -35,6 +35,11 @@ public:
     explicit HotkeyManager(HWND window);
     ~HotkeyManager();
 
+    HotkeyManager(const HotkeyManager&) = delete;
+    HotkeyManager& operator=(const HotkeyManager&) = delete;
+    HotkeyManager(HotkeyManager&&) = delete;
+    HotkeyManager& operator=(HotkeyManager&&) = delete;
+
     bool RegisterHotkey(const HotkeyConfig& config, HotkeyCallback callback);
     void UnregisterHotkey();
 
@@ -42,7 +47,7 @@ public:
 
     const HotkeyConfig& GetConfig() const { return m_config; }
 
-    bool HandleHotkey(WPARAM wParam);
+    bool HandleHotkey(WPARAM wParam) const;
 
     static std::wstring HotkeyToString(const HotkeyConfig& config);
 

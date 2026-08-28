@@ -1,4 +1,4 @@
-#include <windows.h>
+#include <Windows.h>
 #include <iostream>
 #include "TimerMode.h"
 
@@ -31,6 +31,32 @@ SYSTEMTIME TwoMinutesFromNowLocal() {
     FileTimeToSystemTime(&futureFt, &futureUtc);
     SystemTimeToTzSpecificLocalTime(nullptr, &futureUtc, &futureLocal);
     return futureLocal;
+}
+
+bool IdentityLocalToUtc(const SYSTEMTIME& local, SYSTEMTIME& utc) noexcept {
+    utc = local;
+    return true;
+}
+
+bool SpringGapLocalToUtc(const SYSTEMTIME& local, SYSTEMTIME& utc) noexcept {
+    if (local.wHour == 2) {
+        return false;
+    }
+    utc = local;
+    return true;
+}
+
+bool RejectLocalToUtc(const SYSTEMTIME&, SYSTEMTIME&) noexcept {
+    return false;
+}
+
+SYSTEMTIME FileTimeUllToSystemTime(ULONGLONG value) {
+    FILETIME fileTime{};
+    fileTime.dwLowDateTime = static_cast<DWORD>(value & 0xFFFFFFFFULL);
+    fileTime.dwHighDateTime = static_cast<DWORD>(value >> 32U);
+    SYSTEMTIME result{};
+    FileTimeToSystemTime(&fileTime, &result);
+    return result;
 }
 
 }
@@ -138,6 +164,53 @@ int main() {
     invalidUntil = until;
     invalidUntil.untilTime.wMinute = 60;
     Expect(!invalidUntil.IsValid(), "minute 60 should be invalid");
+
+    SYSTEMTIME springNow{};
+    springNow.wYear = 2026;
+    springNow.wMonth = 3;
+    springNow.wDay = 29;
+    springNow.wHour = 1;
+    springNow.wMinute = 30;
+    SYSTEMTIME springUntil{};
+    springUntil.wHour = 2;
+    springUntil.wMinute = 30;
+    const ULONGLONG springUtc = ComputeNextUntilUtcForTesting(
+        springNow, springUntil, SpringGapLocalToUtc);
+    const SYSTEMTIME springResolved = FileTimeUllToSystemTime(springUtc);
+    Expect(springUtc != 0, "DST gap should resolve to the next valid minute");
+    Expect(springResolved.wHour == 3 && springResolved.wMinute == 0,
+           "DST gap should advance 02:30 to 03:00 when the skipped hour is invalid");
+
+    SYSTEMTIME fallNow{};
+    fallNow.wYear = 2026;
+    fallNow.wMonth = 10;
+    fallNow.wDay = 25;
+    fallNow.wHour = 0;
+    fallNow.wMinute = 30;
+    SYSTEMTIME fallUntil{};
+    fallUntil.wHour = 1;
+    fallUntil.wMinute = 30;
+    const SYSTEMTIME fallResolved = FileTimeUllToSystemTime(
+        ComputeNextUntilUtcForTesting(fallNow, fallUntil, IdentityLocalToUtc));
+    Expect(fallResolved.wHour == 1 && fallResolved.wMinute == 30,
+           "valid repeated-hour time should not be shifted by DST gap recovery");
+
+    SYSTEMTIME yearEnd{};
+    yearEnd.wYear = 2026;
+    yearEnd.wMonth = 12;
+    yearEnd.wDay = 31;
+    yearEnd.wHour = 23;
+    yearEnd.wMinute = 59;
+    SYSTEMTIME midnight{};
+    midnight.wHour = 0;
+    midnight.wMinute = 0;
+    const SYSTEMTIME nextYear = FileTimeUllToSystemTime(
+        ComputeNextUntilUtcForTesting(yearEnd, midnight, IdentityLocalToUtc));
+    Expect(nextYear.wYear == 2027 && nextYear.wMonth == 1 && nextYear.wDay == 1,
+           "until-time date arithmetic should cross year boundaries");
+
+    Expect(ComputeNextUntilUtcForTesting(springNow, springUntil, RejectLocalToUtc) == 0,
+           "timer conversion should fail closed when no valid local time can be resolved");
 
     if (g_failures == 0) {
         std::cout << "All TimerMode tests passed.\n";

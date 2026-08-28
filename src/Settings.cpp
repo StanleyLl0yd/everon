@@ -3,12 +3,38 @@
 #include "HotkeyManager.h"
 #include "TimerMode.h"
 #include "Utils.h"
-#include <strsafe.h>
+#include <optional>
+#include <string_view>
 #include <vector>
 
 namespace Everon {
 
 namespace {
+
+class RegistryKey {
+public:
+    explicit RegistryKey(HKEY key = nullptr) noexcept
+        : m_key(key) {
+    }
+
+    ~RegistryKey() {
+        if (m_key) {
+            RegCloseKey(m_key);
+        }
+    }
+
+    RegistryKey(const RegistryKey&) = delete;
+    RegistryKey& operator=(const RegistryKey&) = delete;
+    RegistryKey(RegistryKey&&) = delete;
+    RegistryKey& operator=(RegistryKey&&) = delete;
+
+    HKEY Get() const noexcept {
+        return m_key;
+    }
+
+private:
+    HKEY m_key = nullptr;
+};
 
 bool IsSameSystemTime(const SYSTEMTIME& a, const SYSTEMTIME& b) noexcept {
     return a.wYear == b.wYear &&
@@ -48,12 +74,189 @@ std::wstring GetExecutablePath() {
     return {};
 }
 
+bool ReadDwordValue(HKEY key, const wchar_t* name, DWORD& outValue) {
+    DWORD value = 0;
+    DWORD size = sizeof(value);
+    const LONG result = RegGetValueW(key, nullptr, name, RRF_RT_REG_DWORD,
+                                     nullptr, &value, &size);
+    if (result == ERROR_SUCCESS && size == sizeof(value)) {
+        outValue = value;
+        return true;
+    }
+    if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
+        Utils::CheckWinApiStatus(result, L"RegGetValueW(REG_DWORD)");
+    }
+    return false;
+}
+
+bool ReadQwordValue(HKEY key, const wchar_t* name, ULONGLONG& outValue) {
+    ULONGLONG value = 0;
+    DWORD size = sizeof(value);
+    const LONG result = RegGetValueW(key, nullptr, name, RRF_RT_REG_QWORD,
+                                     nullptr, &value, &size);
+    if (result == ERROR_SUCCESS && size == sizeof(value)) {
+        outValue = value;
+        return true;
+    }
+    if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
+        Utils::CheckWinApiStatus(result, L"RegGetValueW(REG_QWORD)");
+    }
+    return false;
+}
+
+std::optional<std::wstring> ReadStringValue(HKEY key, const wchar_t* name) {
+    constexpr DWORD flags = RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND;
+    DWORD type = 0;
+    DWORD size = 0;
+    LONG result = RegGetValueW(key, nullptr, name, flags, &type, nullptr, &size);
+    if (result == ERROR_FILE_NOT_FOUND) {
+        return std::nullopt;
+    }
+    if (result != ERROR_SUCCESS) {
+        Utils::CheckWinApiStatus(result, L"RegGetValueW(REG_SZ)");
+        return std::nullopt;
+    }
+
+    std::vector<wchar_t> buffer((size / sizeof(wchar_t)) + 1, L'\0');
+    DWORD readSize = size;
+    result = RegGetValueW(key, nullptr, name, flags, &type, buffer.data(), &readSize);
+    if (result != ERROR_SUCCESS) {
+        Utils::CheckWinApiStatus(result, L"RegGetValueW(REG_SZ)");
+        return std::nullopt;
+    }
+    buffer.back() = L'\0';
+    return std::wstring(buffer.data());
+}
+
+bool ReadSystemTimeValue(HKEY key, const wchar_t* name, SYSTEMTIME& outValue) {
+    SYSTEMTIME value{};
+    DWORD size = sizeof(value);
+    const LONG result = RegGetValueW(key, nullptr, name, RRF_RT_REG_BINARY,
+                                     nullptr, &value, &size);
+    if (result == ERROR_SUCCESS && size == sizeof(value)) {
+        outValue = value;
+        return true;
+    }
+    if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
+        Utils::CheckWinApiStatus(result, L"RegGetValueW(REG_BINARY)");
+    }
+    return false;
+}
+
+bool WriteDwordValue(HKEY key, const wchar_t* name, DWORD value) {
+    const LONG result = RegSetKeyValueW(key, nullptr, name, REG_DWORD,
+                                        &value, sizeof(value));
+    return Utils::CheckWinApiStatus(result, L"RegSetKeyValueW(REG_DWORD)");
+}
+
+bool WriteQwordValue(HKEY key, const wchar_t* name, ULONGLONG value) {
+    const LONG result = RegSetKeyValueW(key, nullptr, name, REG_QWORD,
+                                        &value, sizeof(value));
+    return Utils::CheckWinApiStatus(result, L"RegSetKeyValueW(REG_QWORD)");
+}
+
+bool WriteStringValue(HKEY key, const wchar_t* name, std::wstring_view value) {
+    const std::wstring stored(value);
+    const auto size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
+    const LONG result = RegSetKeyValueW(key, nullptr, name, REG_SZ,
+                                        stored.c_str(), size);
+    return Utils::CheckWinApiStatus(result, L"RegSetKeyValueW(REG_SZ)");
+}
+
+bool WriteSystemTimeValue(HKEY key, const wchar_t* name, const SYSTEMTIME& value) {
+    const LONG result = RegSetKeyValueW(key, nullptr, name, REG_BINARY,
+                                        &value, sizeof(value));
+    return Utils::CheckWinApiStatus(result, L"RegSetKeyValueW(REG_BINARY)");
+}
+
+void RecoverLegacyDurationEndTime(TimerConfig& timer) {
+    if (timer.mode != TimerMode::Duration || timer.startTime.wYear == 0) {
+        return;
+    }
+
+    SYSTEMTIME startUtc{};
+    if (!TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {
+        return;
+    }
+
+    FILETIME startFt{};
+    if (!SystemTimeToFileTime(&startUtc, &startFt)) {
+        return;
+    }
+
+    const ULONGLONG startValue =
+        (static_cast<ULONGLONG>(startFt.dwHighDateTime) << 32U) |
+        static_cast<ULONGLONG>(startFt.dwLowDateTime);
+    timer.endTimeUtc = startValue +
+        (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
+}
+
+TimerConfig ReadTimerConfig(HKEY key, TimerConfig timer) {
+    if (DWORD mode = 0; ReadDwordValue(key, L"TimerMode", mode)) {
+        timer.mode = static_cast<TimerMode>(mode);
+    }
+
+    if (DWORD duration = timer.durationMinutes; ReadDwordValue(key, L"TimerDuration", duration)) {
+        timer.durationMinutes = duration;
+    }
+
+    ReadSystemTimeValue(key, L"TimerUntilTime", timer.untilTime);
+    ReadSystemTimeValue(key, L"TimerStartTime", timer.startTime);
+
+    if (ULONGLONG endUtc = 0; ReadQwordValue(key, L"TimerEndUtc", endUtc)) {
+        timer.endTimeUtc = endUtc;
+    } else {
+        RecoverLegacyDurationEndTime(timer);
+    }
+
+    if (!timer.IsValid()) {
+        timer = TimerConfig{};
+        GetLocalTime(&timer.untilTime);
+    }
+    return timer;
+}
+
+std::wstring ExpandRegistryString(std::wstring_view value) {
+    const std::wstring source(value);
+    const DWORD needed = ExpandEnvironmentStringsW(source.c_str(), nullptr, 0);
+    if (needed == 0) {
+        return source;
+    }
+
+    std::vector<wchar_t> expanded(needed, L'\0');
+    if (ExpandEnvironmentStringsW(source.c_str(), expanded.data(), needed) == 0) {
+        return source;
+    }
+    return std::wstring(expanded.data());
+}
+
+std::wstring ExtractExecutableToken(std::wstring_view command) {
+    if (command.empty()) {
+        return {};
+    }
+    if (command.front() == L'"') {
+        const auto end = command.find(L'"', 1);
+        return end == std::wstring_view::npos
+            ? std::wstring{}
+            : std::wstring(command.substr(1, end - 1));
+    }
+    const auto end = command.find_first_of(L" \t");
+    return std::wstring(command.substr(0, end));
+}
+
 }
 
 Settings::Settings() {
     m_autoStart = IsAutoStartEnabled();
     GetLocalTime(&m_timerConfig.untilTime);
 }
+
+#ifdef EVERON_TESTING
+Settings::Settings(const wchar_t* registryKeyPath)
+    : m_registryKeyPath(registryKeyPath && *registryKeyPath ? registryKeyPath : REG_KEY_PATH) {
+    GetLocalTime(&m_timerConfig.untilTime);
+}
+#endif
 
 Language Settings::GetLanguage() const noexcept {
     return Localization::Instance().GetLanguage();
@@ -68,7 +271,7 @@ TimerConfig Settings::GetTimerConfig() const noexcept {
 }
 
 void Settings::SetLanguage(Language value) noexcept {
-    const Language old = GetLanguage();
+    const auto old = GetLanguage();
     Localization::Instance().SetLanguage(value);
     if (GetLanguage() != old) {
         m_dirty = true;
@@ -147,171 +350,58 @@ bool Settings::IsValidVirtualKey(WORD vk) const noexcept {
 }
 
 bool Settings::LoadFromRegistry() {
-    HKEY hKey = nullptr;
-    const LONG openRes = RegOpenKeyExW(HKEY_CURRENT_USER, REG_KEY_PATH, 0, KEY_READ, &hKey);
-    if (openRes != ERROR_SUCCESS) {
-        if (openRes != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(openRes, L"RegOpenKeyExW(HKCU\\\\Software\\\\Everon)");
+    HKEY rawKey = nullptr;
+    if (const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0,
+                                               KEY_READ, &rawKey);
+        openResult != ERROR_SUCCESS) {
+        if (openResult != ERROR_FILE_NOT_FOUND) {
+            Utils::CheckWinApiStatus(openResult, L"RegOpenKeyExW(settings)");
         }
-
         SetLanguage(Localization::DetectSystemLanguage());
         m_autoStart = IsAutoStartEnabled();
         m_dirty = false;
         return true;
     }
+    RegistryKey key(rawKey);
 
-    auto ReadDword = [hKey](const wchar_t* name, DWORD& outValue) -> bool {
-        DWORD type = 0;
-        DWORD size = sizeof(DWORD);
-        DWORD value = 0;
-        const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
-                                          reinterpret_cast<LPBYTE>(&value), &size);
-        if (res == ERROR_SUCCESS && type == REG_DWORD) {
-            outValue = value;
-            return true;
-        }
-        if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_DWORD)");
-        }
-        return false;
-    };
-
-    auto ReadQword = [hKey](const wchar_t* name, ULONGLONG& outValue) -> bool {
-        DWORD type = 0;
-        DWORD size = sizeof(ULONGLONG);
-        ULONGLONG value = 0;
-        const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
-                                          reinterpret_cast<LPBYTE>(&value), &size);
-        if (res == ERROR_SUCCESS && type == REG_QWORD) {
-            outValue = value;
-            return true;
-        }
-        if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_QWORD)");
-        }
-        return false;
-    };
-
-    auto ReadString = [hKey](const wchar_t* name, wchar_t* buffer, DWORD bufferSize) -> bool {
-        const size_t capacity = bufferSize / sizeof(wchar_t);
-        if (!buffer || capacity == 0) {
-            return false;
-        }
-
-        buffer[0] = L'\0';
-        buffer[capacity - 1] = L'\0';
-
-        DWORD type = 0;
-        DWORD size = bufferSize;
-        const LONG res = RegQueryValueExW(hKey, name, nullptr, &type,
-                                          reinterpret_cast<LPBYTE>(buffer), &size);
-        if (res == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ)) {
-            size_t terminator = size / sizeof(wchar_t);
-            if (terminator >= capacity) {
-                terminator = capacity - 1;
-            }
-            buffer[terminator] = L'\0';
-            return true;
-        }
-        if (res != ERROR_SUCCESS && res != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(res, L"RegQueryValueExW(REG_SZ)");
-        }
-        return false;
-    };
-
-    DWORD tempDword = 0;
-    if (ReadDword(L"PeriodSec", tempDword)) {
-        SetPeriodSec(tempDword);
+    DWORD value = 0;
+    if (ReadDwordValue(key.Get(), L"PeriodSec", value)) {
+        SetPeriodSec(value);
     }
-    if (ReadDword(L"VkKey", tempDword)) {
-        SetVirtualKey(static_cast<WORD>(tempDword));
+    if (ReadDwordValue(key.Get(), L"VkKey", value) && value <= 0xFFFFU) {
+        SetVirtualKey(static_cast<WORD>(value));
     }
-    if (ReadDword(L"KeepDisplayOn", tempDword)) {
-        m_keepDisplayOn = (tempDword != 0);
+    if (ReadDwordValue(key.Get(), L"KeepDisplayOn", value)) {
+        m_keepDisplayOn = value != 0;
     }
-    if (ReadDword(L"RespectBatterySaver", tempDword)) {
-        m_respectBatterySaver = (tempDword != 0);
+    if (ReadDwordValue(key.Get(), L"RespectBatterySaver", value)) {
+        m_respectBatterySaver = value != 0;
     }
-    if (ReadDword(L"AllowDisplayOnBattery", tempDword)) {
-        m_allowDisplayOnBattery = (tempDword != 0);
+    if (ReadDwordValue(key.Get(), L"AllowDisplayOnBattery", value)) {
+        m_allowDisplayOnBattery = value != 0;
     }
-    if (ReadDword(L"ShowToggleNotifications", tempDword)) {
-        m_showToggleNotifications = (tempDword != 0);
+    if (ReadDwordValue(key.Get(), L"ShowToggleNotifications", value)) {
+        m_showToggleNotifications = value != 0;
     }
-    if (ReadDword(L"Enabled", tempDword)) {
-        m_enabled = (tempDword != 0);
+    if (ReadDwordValue(key.Get(), L"Enabled", value)) {
+        m_enabled = value != 0;
     }
 
-    wchar_t langBuffer[16] = {};
-    if (ReadString(L"Language", langBuffer, sizeof(langBuffer))) {
-        SetLanguage(Localization::StringToLanguage(langBuffer));
+    if (const auto language = ReadStringValue(key.Get(), L"Language")) {
+        SetLanguage(Localization::StringToLanguage(language->c_str()));
     } else {
         SetLanguage(Localization::DetectSystemLanguage());
     }
 
-    wchar_t hotkeyBuffer[128] = {};
-    if (ReadString(L"Hotkey", hotkeyBuffer, sizeof(hotkeyBuffer))) {
-        m_hotkeyConfig = HotkeyManager::StringToHotkey(hotkeyBuffer);
-    }
-
-    TimerConfig timer = m_timerConfig;
-
-    DWORD tempMode = 0;
-    if (ReadDword(L"TimerMode", tempMode)) {
-        timer.mode = static_cast<TimerMode>(tempMode);
-    }
-    DWORD tempDuration = timer.durationMinutes;
-    if (ReadDword(L"TimerDuration", tempDuration)) {
-        timer.durationMinutes = tempDuration;
-    }
-
-    DWORD type = 0;
-    DWORD size = sizeof(SYSTEMTIME);
-    SYSTEMTIME st = {};
-
-    LONG qRes = RegQueryValueExW(hKey, L"TimerUntilTime", nullptr, &type,
-                                 reinterpret_cast<LPBYTE>(&st), &size);
-    if (qRes == ERROR_SUCCESS && type == REG_BINARY && size == sizeof(SYSTEMTIME)) {
-        timer.untilTime = st;
-    } else if (qRes != ERROR_SUCCESS && qRes != ERROR_FILE_NOT_FOUND) {
-        Utils::CheckWinApiStatus(qRes, L"RegQueryValueExW(TimerUntilTime)");
-    }
-
-    size = sizeof(SYSTEMTIME);
-    st = {};
-    qRes = RegQueryValueExW(hKey, L"TimerStartTime", nullptr, &type,
-                            reinterpret_cast<LPBYTE>(&st), &size);
-    if (qRes == ERROR_SUCCESS && type == REG_BINARY && size == sizeof(SYSTEMTIME)) {
-        timer.startTime = st;
-    } else if (qRes != ERROR_SUCCESS && qRes != ERROR_FILE_NOT_FOUND) {
-        Utils::CheckWinApiStatus(qRes, L"RegQueryValueExW(TimerStartTime)");
-    }
-
-    ULONGLONG tempQword = 0;
-    if (ReadQword(L"TimerEndUtc", tempQword)) {
-        timer.endTimeUtc = tempQword;
-    } else if (timer.mode == TimerMode::Duration && timer.startTime.wYear != 0) {
-        SYSTEMTIME startUtc = {};
-        if (TzSpecificLocalTimeToSystemTime(nullptr, &timer.startTime, &startUtc)) {
-            FILETIME startFt = {};
-            if (SystemTimeToFileTime(&startUtc, &startFt)) {
-            ULARGE_INTEGER u;
-            u.LowPart = startFt.dwLowDateTime;
-            u.HighPart = startFt.dwHighDateTime;
-                timer.endTimeUtc = u.QuadPart +
-                    (static_cast<ULONGLONG>(timer.durationMinutes) * 60ULL * 10000000ULL);
-            }
+    if (const auto hotkey = ReadStringValue(key.Get(), L"Hotkey")) {
+        HotkeyConfig parsed = HotkeyManager::StringToHotkey(hotkey->c_str());
+        if (parsed.enabled && !parsed.IsValid()) {
+            parsed = {};
         }
+        m_hotkeyConfig = parsed;
     }
 
-    if (!timer.IsValid()) {
-        timer = TimerConfig{};
-        GetLocalTime(&timer.untilTime);
-    }
-    m_timerConfig = timer;
-
-    const LONG closeRes = RegCloseKey(hKey);
-    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\\\Software\\\\Everon)");
+    m_timerConfig = ReadTimerConfig(key.Get(), m_timerConfig);
     m_autoStart = IsAutoStartEnabled();
     m_dirty = false;
     return true;
@@ -322,87 +412,35 @@ bool Settings::SaveToRegistry() {
         return true;
     }
 
-    HKEY hKey = nullptr;
-    const LONG createRes = RegCreateKeyExW(HKEY_CURRENT_USER, REG_KEY_PATH, 0, nullptr, 0,
-                                           KEY_WRITE, nullptr, &hKey, nullptr);
-    if (!Utils::CheckWinApiStatus(createRes, L"RegCreateKeyExW(HKCU\\\\Software\\\\Everon)")) {
+    HKEY rawKey = nullptr;
+    if (const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, m_registryKeyPath.c_str(), 0,
+                                                   nullptr, 0, KEY_WRITE, nullptr, &rawKey, nullptr);
+        !Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(settings)")) {
         return false;
     }
-
-    auto WriteDword = [hKey](const wchar_t* name, DWORD value) -> bool {
-        const LONG res = RegSetValueExW(hKey, name, 0, REG_DWORD,
-                                        reinterpret_cast<const BYTE*>(&value),
-                                        sizeof(value));
-        if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_DWORD)")) {
-            Utils::DebugLog(L"[Everon][Reg] Failed to write DWORD value '%s'\n", name);
-            return false;
-        }
-        return true;
-    };
-
-    auto WriteString = [hKey](const wchar_t* name, const wchar_t* value) -> bool {
-        if (value == nullptr) {
-            Utils::DebugLog(L"[Everon][Reg] Refusing null string value '%s'\n", name);
-            return false;
-        }
-        const auto stored = std::wstring(value);
-        const auto size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));
-        const LONG res = RegSetKeyValueW(hKey, nullptr, name, REG_SZ,
-                                         stored.c_str(), size);
-        if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_SZ)")) {
-            Utils::DebugLog(L"[Everon][Reg] Failed to write string value '%s'\n", name);
-            return false;
-        }
-        return true;
-    };
-
-    auto WriteQword = [hKey](const wchar_t* name, ULONGLONG value) -> bool {
-        const LONG res = RegSetValueExW(hKey, name, 0, REG_QWORD,
-                                        reinterpret_cast<const BYTE*>(&value),
-                                        sizeof(value));
-        if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(REG_QWORD)")) {
-            Utils::DebugLog(L"[Everon][Reg] Failed to write QWORD value '%s'\n", name);
-            return false;
-        }
-        return true;
-    };
+    RegistryKey key(rawKey);
 
     bool success = true;
-    success &= WriteDword(L"PeriodSec", m_periodSec);
-    success &= WriteDword(L"VkKey", static_cast<DWORD>(m_vkKey));
-    success &= WriteDword(L"KeepDisplayOn", m_keepDisplayOn ? 1 : 0);
-    success &= WriteDword(L"RespectBatterySaver", m_respectBatterySaver ? 1 : 0);
-    success &= WriteDword(L"AllowDisplayOnBattery", m_allowDisplayOnBattery ? 1 : 0);
-    success &= WriteDword(L"ShowToggleNotifications", m_showToggleNotifications ? 1 : 0);
-    success &= WriteDword(L"Enabled", m_enabled ? 1 : 0);
-    success &= WriteString(L"Language", Localization::LanguageToString(GetLanguage()));
-    success &= WriteString(L"Hotkey", HotkeyManager::HotkeyToRegistryString(m_hotkeyConfig).c_str());
+    success &= WriteDwordValue(key.Get(), L"PeriodSec", m_periodSec);
+    success &= WriteDwordValue(key.Get(), L"VkKey", static_cast<DWORD>(m_vkKey));
+    success &= WriteDwordValue(key.Get(), L"KeepDisplayOn", m_keepDisplayOn ? 1U : 0U);
+    success &= WriteDwordValue(key.Get(), L"RespectBatterySaver", m_respectBatterySaver ? 1U : 0U);
+    success &= WriteDwordValue(key.Get(), L"AllowDisplayOnBattery", m_allowDisplayOnBattery ? 1U : 0U);
+    success &= WriteDwordValue(key.Get(), L"ShowToggleNotifications", m_showToggleNotifications ? 1U : 0U);
+    success &= WriteDwordValue(key.Get(), L"Enabled", m_enabled ? 1U : 0U);
+    success &= WriteStringValue(key.Get(), L"Language", Localization::LanguageToString(GetLanguage()));
+    success &= WriteStringValue(key.Get(), L"Hotkey", HotkeyManager::HotkeyToRegistryString(m_hotkeyConfig));
 
-    const TimerConfig& timer = m_timerConfig;
-    success &= WriteDword(L"TimerMode", static_cast<DWORD>(timer.mode));
-    success &= WriteDword(L"TimerDuration", timer.durationMinutes);
-    LONG res = RegSetValueExW(hKey, L"TimerUntilTime", 0, REG_BINARY,
-                              reinterpret_cast<const BYTE*>(&timer.untilTime),
-                              sizeof(SYSTEMTIME));
-    if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(TimerUntilTime)")) {
-        success = false;
-    }
+    const auto& timer = m_timerConfig;
+    success &= WriteDwordValue(key.Get(), L"TimerMode", static_cast<DWORD>(timer.mode));
+    success &= WriteDwordValue(key.Get(), L"TimerDuration", timer.durationMinutes);
+    success &= WriteSystemTimeValue(key.Get(), L"TimerUntilTime", timer.untilTime);
+    success &= WriteSystemTimeValue(key.Get(), L"TimerStartTime", timer.startTime);
 
-    res = RegSetValueExW(hKey, L"TimerStartTime", 0, REG_BINARY,
-                         reinterpret_cast<const BYTE*>(&timer.startTime),
-                         sizeof(SYSTEMTIME));
-    if (!Utils::CheckWinApiStatus(res, L"RegSetValueExW(TimerStartTime)")) {
-        success = false;
-    }
-
-    ULONGLONG endUtcToSave = 0;
-    if (m_enabled && timer.mode != TimerMode::Indefinite) {
-        endUtcToSave = timer.endTimeUtc;
-    }
-    success &= WriteQword(L"TimerEndUtc", endUtcToSave);
-
-    const LONG closeRes = RegCloseKey(hKey);
-    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\\\Software\\\\Everon)");
+    const ULONGLONG endUtc = m_enabled && timer.mode != TimerMode::Indefinite
+        ? timer.endTimeUtc
+        : 0;
+    success &= WriteQwordValue(key.Get(), L"TimerEndUtc", endUtc);
 
     if (success) {
         m_dirty = false;
@@ -411,103 +449,85 @@ bool Settings::SaveToRegistry() {
 }
 
 bool Settings::IsAutoStartEnabled() {
-    HKEY hKey = nullptr;
-    const LONG openRes = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, KEY_READ, &hKey);
-    if (openRes != ERROR_SUCCESS) {
-        if (openRes != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(openRes, L"RegOpenKeyExW(HKCU\\Run)");
+    HKEY rawKey = nullptr;
+    if (const LONG openResult = RegOpenKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, KEY_READ, &rawKey);
+        openResult != ERROR_SUCCESS) {
+        if (openResult != ERROR_FILE_NOT_FOUND) {
+            Utils::CheckWinApiStatus(openResult, L"RegOpenKeyExW(HKCU\\Run)");
         }
         return false;
     }
+    RegistryKey key(rawKey);
 
     DWORD type = 0;
     DWORD size = 0;
-    LONG result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type, nullptr, &size);
-    if (result != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ) || size < sizeof(wchar_t)) {
-        RegCloseKey(hKey);
-        if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
-            Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\Run\\Everon)");
+    LONG result = RegGetValueW(key.Get(), nullptr, APP_NAME,
+                               RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND,
+                               &type, nullptr, &size);
+    if (result == ERROR_FILE_NOT_FOUND) {
+        return false;
+    }
+    if (result != ERROR_SUCCESS || size < sizeof(wchar_t)) {
+        if (result != ERROR_SUCCESS) {
+            Utils::CheckWinApiStatus(result, L"RegGetValueW(HKCU\\Run\\Everon)");
         }
         return false;
     }
 
-    std::vector<wchar_t> value((size / sizeof(wchar_t)) + 1, L'\0');
+    std::vector<wchar_t> buffer((size / sizeof(wchar_t)) + 1, L'\0');
     DWORD readSize = size;
-    result = RegGetValueW(hKey, nullptr, APP_NAME,
+    result = RegGetValueW(key.Get(), nullptr, APP_NAME,
                           RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND,
-                          &type, value.data(), &readSize);
-    const LONG closeRes = RegCloseKey(hKey);
-    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\Run)");
+                          &type, buffer.data(), &readSize);
     if (result != ERROR_SUCCESS) {
-        Utils::CheckWinApiStatus(result, L"RegQueryValueExW(HKCU\\Run\\Everon)");
+        Utils::CheckWinApiStatus(result, L"RegGetValueW(HKCU\\Run\\Everon)");
         return false;
     }
-    value.back() = L'\0';
+    buffer.back() = L'\0';
 
-    std::wstring stored(value.data());
+    auto stored = std::wstring(buffer.data());
     if (type == REG_EXPAND_SZ) {
-        const DWORD needed = ExpandEnvironmentStringsW(stored.c_str(), nullptr, 0);
-        if (needed != 0) {
-            std::vector<wchar_t> expanded(needed, L'\0');
-            if (ExpandEnvironmentStringsW(stored.c_str(), expanded.data(), needed) != 0) {
-                stored.assign(expanded.data());
-            }
-        }
+        stored = ExpandRegistryString(stored);
     }
 
-    const std::wstring exePath = GetExecutablePath();
-    if (exePath.empty()) {
+    const auto executable = GetExecutablePath();
+    if (executable.empty()) {
         return false;
     }
 
-    std::wstring first;
-    if (!stored.empty() && stored.front() == L'"') {
-        const size_t end = stored.find(L'"', 1);
-        if (end != std::wstring::npos) {
-            first = stored.substr(1, end - 1);
-        }
-    } else {
-        const size_t end = stored.find_first_of(L" \t");
-        first = stored.substr(0, end);
-    }
-
-    return !first.empty() && _wcsicmp(first.c_str(), exePath.c_str()) == 0;
+    const auto configuredExecutable = ExtractExecutableToken(stored);
+    return !configuredExecutable.empty() &&
+           _wcsicmp(configuredExecutable.c_str(), executable.c_str()) == 0;
 }
 
 bool Settings::SetAutoStartEnabled(bool enable) {
-    HKEY hKey = nullptr;
-    const LONG createRes = RegCreateKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, nullptr, 0,
-                                           KEY_WRITE, nullptr, &hKey, nullptr);
-    if (!Utils::CheckWinApiStatus(createRes, L"RegCreateKeyExW(HKCU\\\\Run)")) {
+    HKEY rawKey = nullptr;
+    if (const LONG createResult = RegCreateKeyExW(HKEY_CURRENT_USER, RUN_KEY_PATH, 0, nullptr, 0,
+                                                   KEY_WRITE, nullptr, &rawKey, nullptr);
+        !Utils::CheckWinApiStatus(createResult, L"RegCreateKeyExW(HKCU\\Run)")) {
+        return false;
+    }
+    RegistryKey key(rawKey);
+
+    if (!enable) {
+        const LONG deleteResult = RegDeleteValueW(key.Get(), APP_NAME);
+        if (deleteResult == ERROR_SUCCESS || deleteResult == ERROR_FILE_NOT_FOUND) {
+            return true;
+        }
+        Utils::CheckWinApiStatus(deleteResult, L"RegDeleteValueW(HKCU\\Run\\Everon)");
         return false;
     }
 
-    bool success = false;
-    if (enable) {
-        const std::wstring exePath = GetExecutablePath();
-        if (exePath.empty()) {
-            RegCloseKey(hKey);
-            return false;
-        }
-        const std::wstring quotedPath = L"\"" + exePath + L"\"";
-        const DWORD size = static_cast<DWORD>((quotedPath.size() + 1) * sizeof(wchar_t));
-        LONG setRes = RegSetValueExW(hKey, APP_NAME, 0, REG_SZ,
-                                     reinterpret_cast<const BYTE*>(quotedPath.c_str()),
-                                     size);
-        success = Utils::CheckWinApiStatus(setRes, L"RegSetValueExW(HKCU\\\\Run\\\\Everon)");
-    } else {
-        LONG delRes = RegDeleteValueW(hKey, APP_NAME);
-        if (delRes == ERROR_SUCCESS || delRes == ERROR_FILE_NOT_FOUND) {
-            success = true;
-        } else {
-            Utils::CheckWinApiStatus(delRes, L"RegDeleteValueW(HKCU\\\\Run\\\\Everon)");
-            success = false;
-        }
+    const auto executable = GetExecutablePath();
+    if (executable.empty()) {
+        return false;
     }
 
-    const LONG closeRes = RegCloseKey(hKey);
-    Utils::CheckWinApiStatus(closeRes, L"RegCloseKey(HKCU\\\\Run)");
-    return success;
+    const auto quotedPath = L"\"" + executable + L"\"";
+    const auto size = static_cast<DWORD>((quotedPath.size() + 1) * sizeof(wchar_t));
+    const LONG result = RegSetKeyValueW(key.Get(), nullptr, APP_NAME, REG_SZ,
+                                        quotedPath.c_str(), size);
+    return Utils::CheckWinApiStatus(result, L"RegSetKeyValueW(HKCU\\Run\\Everon)");
 }
 
 }
