@@ -16,8 +16,34 @@ if (-not (Test-Path $coverageTool)) {
 }
 
 $coverageDir = Join-Path $PWD "coverage"
+$releaseDir = Join-Path $PWD "build\Release"
 Remove-Item $coverageDir -Recurse -Force -ErrorAction SilentlyContinue
 New-Item $coverageDir -ItemType Directory | Out-Null
+
+$configPath = Join-Path $coverageDir "coverage.config"
+$config = @"
+<?xml version="1.0" encoding="utf-8"?>
+<Configuration>
+  <IncludeTestAssembly>True</IncludeTestAssembly>
+  <CodeCoverage>
+    <EnableStaticNativeInstrumentation>True</EnableStaticNativeInstrumentation>
+    <EnableDynamicNativeInstrumentation>False</EnableDynamicNativeInstrumentation>
+    <EnableStaticNativeInstrumentationRestore>True</EnableStaticNativeInstrumentationRestore>
+    <SymbolSearchPaths>
+      <Path>$releaseDir</Path>
+    </SymbolSearchPaths>
+    <ModulePaths>
+      <Include>
+        <ModulePath>.*Tests\.exe$</ModulePath>
+      </Include>
+      <IncludeDirectories>
+        <Directory Recursive="false">$releaseDir</Directory>
+      </IncludeDirectories>
+    </ModulePaths>
+  </CodeCoverage>
+</Configuration>
+"@
+$config | Set-Content $configPath -Encoding utf8
 
 $tests = @(
     "TimerModeTests",
@@ -31,27 +57,15 @@ $tests = @(
 )
 
 foreach ($test in $tests) {
-    $executable = Join-Path $PWD "build\Release\$test.exe"
+    $executable = Join-Path $releaseDir "$test.exe"
     if (-not (Test-Path $executable)) {
         throw "Coverage test executable was not found: $executable"
     }
 
     $output = Join-Path $coverageDir "$test.coverage"
-    & $coverageTool instrument $executable
+    & $coverageTool collect --settings $configPath -o $output -f coverage $executable
     if ($LASTEXITCODE -ne 0) {
-        throw "Coverage instrumentation failed for $test"
-    }
-
-    try {
-        & $coverageTool collect -o $output -f coverage $executable
-        if ($LASTEXITCODE -ne 0) {
-            throw "Coverage collection failed for $test"
-        }
-    } finally {
-        & $coverageTool uninstrument $executable
-        if ($LASTEXITCODE -ne 0) {
-            throw "Coverage restoration failed for $test"
-        }
+        throw "Coverage collection failed for $test"
     }
 }
 
