@@ -9,9 +9,14 @@ public:
     PowerManager() = default;
     ~PowerManager();
 
+    PowerManager(const PowerManager&) = delete;
+    PowerManager& operator=(const PowerManager&) = delete;
+    PowerManager(PowerManager&&) = delete;
+    PowerManager& operator=(PowerManager&&) = delete;
+
     bool PreventSleep(bool keepDisplayOn);
     bool AllowSleep();
-    void SendKeyPress(WORD virtualKey);
+    void SendKeyPress(WORD virtualKey) const;
 
     bool IsPreventingSleep() const noexcept { return m_isActive; }
     bool IsKeepingDisplayOn() const noexcept { return m_isActive && m_keepDisplayOn; }
