@@ -1,0 +1,52 @@
+name: Finalize audit hardening
+
+on:
+  push:
+    branches:
+      - codex/audit-fixes
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.event.head_commit.message == 'Finalize timer failure handling'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/audit-fixes
+          fetch-depth: 0
+
+      - name: Harden invalid timer state handling
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/App.cpp")
+          text = path.read_text(encoding="utf-8")
+
+          old = """bool App::ArmExpireTimer(const TimerConfig& timer) {\n    const DWORD remainingMs = timer.GetRemainingMilliseconds();\n"""
+          new = """bool App::ArmExpireTimer(const TimerConfig& timer) {\n    if (timer.mode != TimerMode::Indefinite && timer.endTimeUtc == 0) {\n        m_expireTimerArmed = false;\n        DisableAfterTimerFailure();\n        return false;\n    }\n\n    const DWORD remainingMs = timer.GetRemainingMilliseconds();\n"""
+          if old not in text:
+              raise SystemExit("ArmExpireTimer insertion point not found")
+          text = text.replace(old, new, 1)
+
+          old = """    m_settings.SetTimerConfig(timer);\n    if (persistRuntimeState) {\n"""
+          new = """    if (timer.endTimeUtc == 0) {\n        DisableAfterTimerFailure();\n        return;\n    }\n\n    m_settings.SetTimerConfig(timer);\n    if (persistRuntimeState) {\n"""
+          if old not in text:
+              raise SystemExit("StartTimer insertion point not found")
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding="utf-8")
+
+      - name: Commit code change
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src/App.cpp
+          git commit -m "Fail safely on invalid timed state"
+          git push origin HEAD:codex/audit-fixes
