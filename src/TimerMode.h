@@ -1,6 +1,9 @@
 #pragma once
 
 #include <windows.h>
+#ifdef EVERON_TESTING
+#include <functional>
+#endif
 
 namespace Everon {
 
@@ -32,10 +35,10 @@ struct TimerConfig {
 };
 
 #ifdef EVERON_TESTING
-using LocalToUtcTestFn = bool (*)(const SYSTEMTIME&, SYSTEMTIME&) noexcept;
+using LocalToUtcTestFn = std::function<bool(const SYSTEMTIME&, SYSTEMTIME&)>;
 ULONGLONG ComputeNextUntilUtcForTesting(const SYSTEMTIME& nowLocal,
                                         const SYSTEMTIME& untilTime,
-                                        LocalToUtcTestFn converter) noexcept;
+                                        const LocalToUtcTestFn& converter) noexcept;
 #endif
 
 }
