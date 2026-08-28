@@ -1,4 +1,4 @@
-name: Sonar PR17 diagnostics
+name: Apply final PR17 Sonar cleanup
 
 on:
   push:
@@ -6,18 +6,36 @@ on:
       - codex/security-hotspots
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  fix:
+    if: github.event.head_commit.message == 'Apply final Sonar cleanup'
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Sonar PR issues
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/security-hotspots
+          fetch-depth: 0
+      - name: Apply cleanup
+        shell: bash
         run: |
-          curl --fail --silent --show-error --get \
-            'https://sonarcloud.io/api/issues/search' \
-            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
-            --data-urlencode 'pullRequest=17' \
-            --data-urlencode 'resolved=false' \
-            --data-urlencode 'ps=100' \
-            | jq '{total, issues: [.issues[] | {key, rule, severity, type, component, line, message, impacts}]}'
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/Settings.cpp')
+          text = path.read_text(encoding='utf-8')
+          old = '        const DWORD size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));'
+          new = '        const auto size = static_cast<DWORD>((stored.size() + 1) * sizeof(wchar_t));'
+          if old not in text:
+              raise SystemExit('Settings size declaration not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit source change
+        shell: bash
+        run: |
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src/Settings.cpp
+          git commit -m "Resolve final Sonar maintainability finding"
+          git push origin HEAD:codex/security-hotspots
