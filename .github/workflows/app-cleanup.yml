@@ -1,0 +1,68 @@
+name: App cleanup
+
+on:
+  push:
+    branches:
+      - sonar-main-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          ref: sonar-main-cleanup
+
+      - name: Modernize App control flow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/App.cpp')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('#include <commctrl.h>\n', '#include <commctrl.h>\n#include <bit>\n')
+          text = text.replace('const TimerConfig timer = m_settings.GetTimerConfig();', 'const auto timer = m_settings.GetTimerConfig();')
+          text = text.replace('TimerConfig timer = m_settings.GetTimerConfig();', 'auto timer = m_settings.GetTimerConfig();')
+          text = text.replace(
+              '        auto createStruct = reinterpret_cast<CREATESTRUCTW*>(lParam);\n'
+              '        app = static_cast<App*>(createStruct->lpCreateParams);\n'
+              '        SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));',
+              '        const auto* createStruct = std::bit_cast<CREATESTRUCTW*>(lParam);\n'
+              '        app = static_cast<App*>(createStruct->lpCreateParams);\n'
+              '        SetWindowLongPtrW(window, GWLP_USERDATA, std::bit_cast<LONG_PTR>(app));'
+          )
+          text = text.replace(
+              '        app = reinterpret_cast<App*>(GetWindowLongPtrW(window, GWLP_USERDATA));',
+              '        app = std::bit_cast<App*>(GetWindowLongPtrW(window, GWLP_USERDATA));'
+          )
+          text = text.replace(
+              '        case WM_DESTROY:\n            app->OnDestroy();\n            return 0;\n    }',
+              '        case WM_DESTROY:\n            app->OnDestroy();\n            return 0;\n        default:\n            break;\n    }'
+          )
+          text = text.replace(
+              '        const WORD vk = m_settings.GetVirtualKey();\n        if (vk != 0) {',
+              '        if (const auto vk = m_settings.GetVirtualKey(); vk != 0) {'
+          )
+          text = text.replace(
+              '    const WORD vk = m_settings.GetVirtualKey();\n    const UINT periodSec = m_settings.GetPeriodSec();\n    if (vk != 0 && periodSec > 0) {',
+              '    const auto vk = m_settings.GetVirtualKey();\n    if (const auto periodSec = m_settings.GetPeriodSec(); vk != 0 && periodSec > 0) {'
+          )
+          text = text.replace('        PowerContext unknown;\n', '        auto unknown = PowerContext{};\n')
+          text = text.replace('    PowerContext context;\n', '    auto context = PowerContext{};\n')
+          text = text.replace('    const PowerDecision decision = EvaluatePowerPolicy(', '    const auto decision = EvaluatePowerPolicy(')
+          text = text.replace('    HotkeyConfig config = m_settings.GetHotkeyConfig();\n    const bool ok = m_hotkeyManager->RegisterHotkey(config, [this]() { ToggleEnabled(); });\n\n    if (!ok && config.enabled && config.IsValid() && m_trayIcon) {',
+                              '    const auto config = m_settings.GetHotkeyConfig();\n    if (const bool ok = m_hotkeyManager->RegisterHotkey(config, [this]() { ToggleEnabled(); });\n        !ok && config.enabled && config.IsValid() && m_trayIcon) {')
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+          git rm -f .github/workflows/app-cleanup.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.cpp
+          git commit -m "Modernize App control flow"
+          git push origin HEAD:sonar-main-cleanup
