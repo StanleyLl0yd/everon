@@ -1,4 +1,5 @@
-#include <windows.h>
+#include <Windows.h>
+#include <format>
 #include <iostream>
 #include <string>
 
@@ -99,8 +100,8 @@ int main() {
     Expect(settings.GetKeepDisplayOn() == snapshot.GetKeepDisplayOn(),
            "editing a staged settings copy should not mutate the live snapshot");
 
-    const std::wstring testPath = L"Software\\Everon\\Tests\\Settings-" +
-                                  std::to_wstring(GetCurrentProcessId());
+    const std::wstring testPath = std::format(
+        L"Software\\Everon\\Tests\\Settings-{}", GetCurrentProcessId());
     DeleteTestKey(testPath);
 
     Settings persisted(testPath.c_str());
@@ -148,20 +149,19 @@ int main() {
     Expect(createResult == ERROR_SUCCESS, "corrupt registry fixture should be created");
     if (createResult == ERROR_SUCCESS) {
         const wchar_t badPeriod[] = L"not-a-number";
-        RegSetValueExW(corruptKey, L"PeriodSec", 0, REG_SZ,
-                       reinterpret_cast<const BYTE*>(badPeriod), sizeof(badPeriod));
+        RegSetKeyValueW(corruptKey, nullptr, L"PeriodSec", REG_SZ, badPeriod, sizeof(badPeriod));
 
         const DWORD oversizedKey = 0x10000U | VK_F17;
-        RegSetValueExW(corruptKey, L"VkKey", 0, REG_DWORD,
-                       reinterpret_cast<const BYTE*>(&oversizedKey), sizeof(oversizedKey));
+        RegSetKeyValueW(corruptKey, nullptr, L"VkKey", REG_DWORD,
+                        &oversizedKey, sizeof(oversizedKey));
 
         const DWORD invalidMode = 99;
-        RegSetValueExW(corruptKey, L"TimerMode", 0, REG_DWORD,
-                       reinterpret_cast<const BYTE*>(&invalidMode), sizeof(invalidMode));
+        RegSetKeyValueW(corruptKey, nullptr, L"TimerMode", REG_DWORD,
+                        &invalidMode, sizeof(invalidMode));
 
         const wchar_t invalidHotkey[] = L"1,2147483648,69";
-        RegSetValueExW(corruptKey, L"Hotkey", 0, REG_SZ,
-                       reinterpret_cast<const BYTE*>(invalidHotkey), sizeof(invalidHotkey));
+        RegSetKeyValueW(corruptKey, nullptr, L"Hotkey", REG_SZ,
+                        invalidHotkey, sizeof(invalidHotkey));
         RegCloseKey(corruptKey);
     }
 
