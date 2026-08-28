@@ -1,0 +1,20 @@
+name: Trigger audit hardening
+
+on:
+  push:
+    branches:
+      - codex/audit-fixes
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch audit hardening
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run apply-audit-fixes.yml --repo "$GITHUB_REPOSITORY" --ref codex/audit-fixes
