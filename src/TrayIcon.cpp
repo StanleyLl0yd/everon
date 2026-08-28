@@ -6,6 +6,8 @@
 #include "resource.h"
 #include <strsafe.h>
 #include <array>
+#include <bit>
+#include <format>
 #include <string_view>
 
 #ifndef NIF_SHOWTIP
@@ -16,6 +18,13 @@
 #endif
 
 namespace {
+
+HICON SelectTrayIcon(bool enabled, HICON activeIcon, HICON disabledIcon) noexcept {
+    if (enabled && activeIcon) {
+        return activeIcon;
+    }
+    return disabledIcon ? disabledIcon : activeIcon;
+}
 
 HICON CreateMutedIcon(HICON source, int width, int height) {
     if (!source || width <= 0 || height <= 0) {
@@ -34,14 +43,15 @@ HICON CreateMutedIcon(HICON source, int width, int height) {
     header.bV5BlueMask = 0x000000FF;
     header.bV5AlphaMask = 0xFF000000;
 
-    HDC screen = GetDC(nullptr);
+    const auto screen = GetDC(nullptr);
     if (!screen) {
         return nullptr;
     }
+
     void* rawBits = nullptr;
-    HBITMAP color = CreateDIBSection(screen, reinterpret_cast<BITMAPINFO*>(&header),
-                                     DIB_RGB_COLORS, &rawBits, nullptr, 0);
-    HDC memory = CreateCompatibleDC(screen);
+    const auto color = CreateDIBSection(screen, std::bit_cast<BITMAPINFO*>(&header),
+                                        DIB_RGB_COLORS, &rawBits, nullptr, 0);
+    const auto memory = CreateCompatibleDC(screen);
     ReleaseDC(nullptr, screen);
     if (!color || !memory || !rawBits) {
         if (memory) DeleteDC(memory);
@@ -49,7 +59,7 @@ HICON CreateMutedIcon(HICON source, int width, int height) {
         return nullptr;
     }
 
-    HGDIOBJ oldBitmap = SelectObject(memory, color);
+    const auto oldBitmap = SelectObject(memory, color);
     ZeroMemory(rawBits, static_cast<SIZE_T>(width) * height * 4);
     const BOOL drawn = DrawIconEx(memory, 0, 0, source, width, height, 0, nullptr, DI_NORMAL);
     SelectObject(memory, oldBitmap);
@@ -60,9 +70,9 @@ HICON CreateMutedIcon(HICON source, int width, int height) {
     }
 
     auto* pixels = static_cast<BYTE*>(rawBits);
-    const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+    const auto pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
     for (size_t i = 0; i < pixelCount; ++i) {
-        BYTE* pixel = pixels + (i * 4);
+        auto* pixel = pixels + (i * 4);
         const BYTE gray = static_cast<BYTE>((static_cast<unsigned>(pixel[2]) * 30U +
                                              static_cast<unsigned>(pixel[1]) * 59U +
                                              static_cast<unsigned>(pixel[0]) * 11U) / 100U);
@@ -72,7 +82,7 @@ HICON CreateMutedIcon(HICON source, int width, int height) {
         pixel[2] = muted;
     }
 
-    HBITMAP mask = CreateBitmap(width, height, 1, 1, nullptr);
+    const auto mask = CreateBitmap(width, height, 1, 1, nullptr);
     if (!mask) {
         DeleteObject(color);
         return nullptr;
@@ -82,10 +92,98 @@ HICON CreateMutedIcon(HICON source, int width, int height) {
     iconInfo.fIcon = TRUE;
     iconInfo.hbmColor = color;
     iconInfo.hbmMask = mask;
-    HICON result = CreateIconIndirect(&iconInfo);
+    const auto result = CreateIconIndirect(&iconInfo);
     DeleteObject(mask);
     DeleteObject(color);
     return result;
+}
+
+std::wstring BuildKeyPressStatus(const Everon::Settings& settings, wchar_t secUnit) {
+    const auto vk = settings.GetVirtualKey();
+    const auto period = settings.GetPeriodSec();
+    if (vk == 0 || period == 0) {
+        return {};
+    }
+
+    return std::format(L"{}/{}{}", Everon::Utils::GetKeyName(vk), period, secUnit);
+}
+
+struct TimerStatus {
+    DWORD activeDurationMinutes = 0;
+    std::wstring text;
+};
+
+TimerStatus BuildTimerStatus(const Everon::Settings& settings,
+                             const Everon::Localization& loc,
+                             wchar_t minUnit,
+                             wchar_t hourUnit) {
+    using enum Everon::StringID;
+    using enum Everon::TimerMode;
+
+    const auto timer = settings.GetTimerConfig();
+    if (timer.mode == Duration) {
+        const auto remaining = timer.GetRemainingSeconds();
+        if (remaining == INFINITE || remaining == 0) {
+            return {timer.durationMinutes, {}};
+        }
+
+        auto minutes = (remaining + 59U) / 60U;
+        const auto hours = minutes / 60U;
+        minutes %= 60U;
+        if (hours > 0) {
+            return {
+                timer.durationMinutes,
+                std::format(L"{} {}{} {:02}{}", loc.GetString(SettingsTimer),
+                            hours, hourUnit, minutes, minUnit)
+            };
+        }
+        return {
+            timer.durationMinutes,
+            std::format(L"{} {}{}", loc.GetString(SettingsTimer), minutes, minUnit)
+        };
+    }
+
+    if (timer.mode == UntilTime) {
+        if (timer.IsUntilNextDay()) {
+            return {
+                0,
+                std::format(L"{} {} {:02}:{:02}", loc.GetString(SettingsTimerUntil),
+                            loc.GetString(SettingsTimerTomorrow),
+                            timer.untilTime.wHour, timer.untilTime.wMinute)
+            };
+        }
+        return {
+            0,
+            std::format(L"{} {:02}:{:02}", loc.GetString(SettingsTimerUntil),
+                        timer.untilTime.wHour, timer.untilTime.wMinute)
+        };
+    }
+
+    return {};
+}
+
+HMENU CreateTimerMenu(bool enabled, DWORD activeDurationMinutes,
+                      const Everon::Localization& loc) {
+    using enum Everon::StringID;
+
+    const auto timerMenu = CreatePopupMenu();
+    if (!timerMenu) {
+        return nullptr;
+    }
+
+    const auto durationFlags = [enabled, activeDurationMinutes](DWORD minutes) -> UINT {
+        const bool checked = enabled && activeDurationMinutes == minutes;
+        return MF_STRING | (checked ? MF_CHECKED : 0U);
+    };
+
+    AppendMenuW(timerMenu, durationFlags(15), IDM_TIMER_15, loc.GetString(MenuTimer15));
+    AppendMenuW(timerMenu, durationFlags(30), IDM_TIMER_30, loc.GetString(MenuTimer30));
+    AppendMenuW(timerMenu, durationFlags(60), IDM_TIMER_60, loc.GetString(MenuTimer60));
+    AppendMenuW(timerMenu, durationFlags(120), IDM_TIMER_120, loc.GetString(MenuTimer120));
+    AppendMenuW(timerMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_CUSTOM, loc.GetString(MenuTimerCustom));
+    AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_UNTIL, loc.GetString(MenuTimerUntil));
+    return timerMenu;
 }
 
 }
@@ -114,8 +212,8 @@ bool TrayIcon::Add() {
         {0x8b5e6f7a, 0x6d8a, 0x4a0c, {0x9d, 0x2e, 0x4f, 0x7d, 0x7a, 0x51, 0x1c, 0x10}};
     m_notifyData.guidItem = kTrayGuid;
 
-    const int iconWidth = GetSystemMetrics(SM_CXSMICON);
-    const int iconHeight = GetSystemMetrics(SM_CYSMICON);
+    const auto iconWidth = GetSystemMetrics(SM_CXSMICON);
+    const auto iconHeight = GetSystemMetrics(SM_CYSMICON);
     m_activeIcon = static_cast<HICON>(
         LoadImageW(m_instance, MAKEINTRESOURCEW(IDI_EVERON),
                    IMAGE_ICON, iconWidth, iconHeight, LR_DEFAULTCOLOR));
@@ -126,20 +224,18 @@ bool TrayIcon::Add() {
         m_activeIconOwned = false;
     }
     m_disabledIcon = CreateMutedIcon(m_activeIcon, iconWidth, iconHeight);
-    m_notifyData.hIcon = m_isEnabled && m_activeIcon
-        ? m_activeIcon
-        : (m_disabledIcon ? m_disabledIcon : m_activeIcon);
+    m_notifyData.hIcon = SelectTrayIcon(m_isEnabled, m_activeIcon, m_disabledIcon);
 
     StringCchCopyW(m_notifyData.szTip, _countof(m_notifyData.szTip), L"Everon");
 
     if (!Utils::ShellNotifyIconChecked(NIM_ADD, &m_notifyData, L"add tray icon")) {
-        Utils::DebugLog(L"[Everon] Failed to add tray icon: %lu\n", GetLastError());
+        Utils::DebugLog(L"[Everon] Failed to add tray icon: {}\n", GetLastError());
         return false;
     }
 
     m_notifyData.uVersion = NOTIFYICON_VERSION_4;
 
-    const UINT savedFlags = m_notifyData.uFlags;
+    const auto savedFlags = m_notifyData.uFlags;
     m_notifyData.uFlags = 0;
     if (!Utils::ShellNotifyIconChecked(NIM_SETVERSION, &m_notifyData, L"set tray icon v4")) {
         m_notifyData.uVersion = NOTIFYICON_VERSION;
@@ -159,34 +255,38 @@ bool TrayIcon::ReAdd() {
 }
 
 void TrayIcon::Remove() {
-    if (m_notifyData.cbSize > 0) {
-        Utils::ShellNotifyIconChecked(NIM_DELETE, &m_notifyData, L"remove tray icon");
-        if (m_disabledIcon) {
-            DestroyIcon(m_disabledIcon);
-            m_disabledIcon = nullptr;
-        }
-        if (m_activeIconOwned && m_activeIcon) {
-            DestroyIcon(m_activeIcon);
-        }
-        m_activeIcon = nullptr;
-        m_activeIconOwned = false;
-        m_notifyData = {};
+    if (m_notifyData.cbSize == 0) {
+        return;
     }
+
+    Utils::ShellNotifyIconChecked(NIM_DELETE, &m_notifyData, L"remove tray icon");
+    if (m_disabledIcon) {
+        DestroyIcon(m_disabledIcon);
+        m_disabledIcon = nullptr;
+    }
+    if (m_activeIconOwned && m_activeIcon) {
+        DestroyIcon(m_activeIcon);
+    }
+    m_activeIcon = nullptr;
+    m_activeIconOwned = false;
+    m_notifyData = {};
 }
 
 void TrayIcon::UpdateTooltip(const Settings& settings,
                              bool pausedByBatterySaver,
                              bool displayKeepAwakeActive) {
+    using enum StringID;
+
     if (m_notifyData.cbSize == 0) {
         return;
     }
 
     const auto& loc = Localization::Instance();
     std::wstring status = settings.IsEnabled()
-        ? loc.GetString(StringID::TooltipEnabled)
-        : loc.GetString(StringID::TooltipDisabled);
+        ? loc.GetString(TooltipEnabled)
+        : loc.GetString(TooltipDisabled);
 
-    auto append = [&status](std::wstring_view value) {
+    const auto append = [&status](std::wstring_view value) {
         if (!value.empty()) {
             status += L" • ";
             status.append(value);
@@ -196,7 +296,7 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
     m_activeDurationMinutes = 0;
     if (settings.IsEnabled()) {
         if (pausedByBatterySaver) {
-            append(loc.GetString(StringID::StatusBatterySaverPaused));
+            append(loc.GetString(StatusBatterySaverPaused));
         }
 
         const bool isRu = loc.GetLanguage() == Language::Russian;
@@ -204,55 +304,14 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
         const wchar_t minUnit = isRu ? L'\x043C' : L'm';
         const wchar_t hourUnit = isRu ? L'\x0447' : L'h';
 
-        const WORD vk = settings.GetVirtualKey();
-        const DWORD period = settings.GetPeriodSec();
-        if (vk != 0 && period > 0) {
-            std::array<wchar_t, 64> part{};
-            StringCchPrintfW(part.data(), part.size(), L"%s/%lu%c",
-                             Utils::GetKeyName(vk).c_str(),
-                             static_cast<unsigned long>(period), secUnit);
-            append(part.data());
-        }
-
+        append(BuildKeyPressStatus(settings, secUnit));
         if (displayKeepAwakeActive) {
-            append(loc.GetString(StringID::SettingsKeepDisplay));
+            append(loc.GetString(SettingsKeepDisplay));
         }
 
-        const TimerConfig timer = settings.GetTimerConfig();
-        if (timer.mode == TimerMode::Duration) {
-            m_activeDurationMinutes = timer.durationMinutes;
-            const DWORD remaining = timer.GetRemainingSeconds();
-            if (remaining != INFINITE && remaining > 0) {
-                DWORD minutes = (remaining + 59U) / 60U;
-                const DWORD hours = minutes / 60;
-                minutes %= 60;
-                std::array<wchar_t, 96> part{};
-                if (hours > 0) {
-                    StringCchPrintfW(part.data(), part.size(), L"%s %lu%c %02lu%c",
-                                     loc.GetString(StringID::SettingsTimer),
-                                     static_cast<unsigned long>(hours), hourUnit,
-                                     static_cast<unsigned long>(minutes), minUnit);
-                } else {
-                    StringCchPrintfW(part.data(), part.size(), L"%s %lu%c",
-                                     loc.GetString(StringID::SettingsTimer),
-                                     static_cast<unsigned long>(minutes), minUnit);
-                }
-                append(part.data());
-            }
-        } else if (timer.mode == TimerMode::UntilTime) {
-            std::array<wchar_t, 128> part{};
-            if (timer.IsUntilNextDay()) {
-                StringCchPrintfW(part.data(), part.size(), L"%s %s %02d:%02d",
-                                 loc.GetString(StringID::SettingsTimerUntil),
-                                 loc.GetString(StringID::SettingsTimerTomorrow),
-                                 timer.untilTime.wHour, timer.untilTime.wMinute);
-            } else {
-                StringCchPrintfW(part.data(), part.size(), L"%s %02d:%02d",
-                                 loc.GetString(StringID::SettingsTimerUntil),
-                                 timer.untilTime.wHour, timer.untilTime.wMinute);
-            }
-            append(part.data());
-        }
+        const auto timerStatus = BuildTimerStatus(settings, loc, minUnit, hourUnit);
+        m_activeDurationMinutes = timerStatus.activeDurationMinutes;
+        append(timerStatus.text);
     }
 
     m_statusText = status;
@@ -270,7 +329,8 @@ void TrayIcon::UpdateIcon() {
     if (m_notifyData.cbSize == 0) {
         return;
     }
-    HICON icon = m_isEnabled ? m_activeIcon : (m_disabledIcon ? m_disabledIcon : m_activeIcon);
+
+    const auto icon = SelectTrayIcon(m_isEnabled, m_activeIcon, m_disabledIcon);
     if (!icon) {
         return;
     }
@@ -280,13 +340,14 @@ void TrayIcon::UpdateIcon() {
 }
 
 void TrayIcon::HandleMessage(LPARAM lParam) {
-    const UINT mouseMsg = LOWORD(lParam);
+    const auto mouseMsg = LOWORD(lParam);
 
     switch (mouseMsg) {
         case WM_RBUTTONUP:
         case WM_CONTEXTMENU:
             ShowContextMenu();
             break;
+
         case WM_LBUTTONUP:
         case NIN_SELECT:
         case NIN_KEYSELECT:
@@ -294,11 +355,16 @@ void TrayIcon::HandleMessage(LPARAM lParam) {
                 m_onSettings();
             }
             break;
+
+        default:
+            break;
     }
 }
 
 void TrayIcon::ShowContextMenu() {
-    HMENU menu = CreatePopupMenu();
+    using enum StringID;
+
+    const auto menu = CreatePopupMenu();
     if (!menu) {
         return;
     }
@@ -307,44 +373,35 @@ void TrayIcon::ShowContextMenu() {
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, m_statusText.c_str());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
-    const wchar_t* toggleText = m_isEnabled
-        ? loc.GetString(StringID::MenuDisable)
-        : loc.GetString(StringID::MenuEnable);
+    const auto* toggleText = m_isEnabled
+        ? loc.GetString(MenuDisable)
+        : loc.GetString(MenuEnable);
     AppendMenuW(menu, MF_STRING, IDM_TOGGLE, toggleText);
 
-    HMENU timerMenu = CreatePopupMenu();
-    if (timerMenu) {
-        auto DurationFlags = [&](DWORD minutes) -> UINT {
-            return MF_STRING | ((m_isEnabled && m_activeDurationMinutes == minutes) ? MF_CHECKED : 0U);
-        };
-        AppendMenuW(timerMenu, DurationFlags(15), IDM_TIMER_15, loc.GetString(StringID::MenuTimer15));
-        AppendMenuW(timerMenu, DurationFlags(30), IDM_TIMER_30, loc.GetString(StringID::MenuTimer30));
-        AppendMenuW(timerMenu, DurationFlags(60), IDM_TIMER_60, loc.GetString(StringID::MenuTimer60));
-        AppendMenuW(timerMenu, DurationFlags(120), IDM_TIMER_120, loc.GetString(StringID::MenuTimer120));
-        AppendMenuW(timerMenu, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_CUSTOM, loc.GetString(StringID::MenuTimerCustom));
-        AppendMenuW(timerMenu, MF_STRING, IDM_TIMER_UNTIL, loc.GetString(StringID::MenuTimerUntil));
-        AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(timerMenu),
-                    loc.GetString(StringID::MenuQuickTimer));
+    if (const auto timerMenu = CreateTimerMenu(m_isEnabled, m_activeDurationMinutes, loc)) {
+        AppendMenuW(menu, MF_POPUP, std::bit_cast<UINT_PTR>(timerMenu), loc.GetString(MenuQuickTimer));
     }
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, IDM_SETTINGS, loc.GetString(StringID::MenuSettings));
-    AppendMenuW(menu, MF_STRING, IDM_ABOUT, loc.GetString(StringID::MenuAbout));
+    AppendMenuW(menu, MF_STRING, IDM_SETTINGS, loc.GetString(MenuSettings));
+    AppendMenuW(menu, MF_STRING, IDM_ABOUT, loc.GetString(MenuAbout));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, IDM_EXIT, loc.GetString(StringID::MenuExit));
+    AppendMenuW(menu, MF_STRING, IDM_EXIT, loc.GetString(MenuExit));
 
-    POINT cursor = {};
+    POINT cursor{};
     GetCursorPos(&cursor);
     SetForegroundWindow(m_parentWindow);
 
-    const int command = TrackPopupMenu(menu,
+    const auto command = TrackPopupMenu(menu,
         TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
         cursor.x, cursor.y, 0, m_parentWindow, nullptr);
 
     PostMessageW(m_parentWindow, WM_NULL, 0, 0);
     DestroyMenu(menu);
+    DispatchCommand(command);
+}
 
+void TrayIcon::DispatchCommand(int command) {
     switch (command) {
         case IDM_TOGGLE:
             if (m_onToggle) m_onToggle();
@@ -375,6 +432,8 @@ void TrayIcon::ShowContextMenu() {
             break;
         case IDM_EXIT:
             if (m_onExit) m_onExit();
+            break;
+        default:
             break;
     }
 }
