@@ -1,4 +1,4 @@
-name: Sonar PR diagnostics
+name: Fix Sonar PR findings
 
 on:
   push:
@@ -6,21 +6,98 @@ on:
       - codex/audit-fixes
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
-    if: github.event.head_commit.message == 'Inspect Sonar PR findings'
+  fix:
+    if: github.event.head_commit.message == 'Fix Sonar PR findings'
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch Sonar findings
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: codex/audit-fixes
+          fetch-depth: 0
+
+      - name: Apply Sonar fixes
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              if text.count(old) < count:
+                  raise SystemExit(f"Replacement not found in {path}: {old[:80]!r}")
+              text = text.replace(old, new, count)
+              p.write_text(text, encoding="utf-8")
+
+          replace(
+              "src/App.cpp",
+              "        auto& loc = Localization::Instance();\n        m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),\n                                     loc.GetString(StringID::ErrorTimerState), NIIF_WARNING);",
+              "        const auto& loc = Localization::Instance();\n        m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),\n                                     loc.GetString(StringID::ErrorTimerState), NIIF_WARNING);"
+          )
+
+          replace(
+              "src/Settings.cpp",
+              "    result = RegQueryValueExW(hKey, APP_NAME, nullptr, &type,\n                              reinterpret_cast<LPBYTE>(value.data()), &readSize);",
+              "    result = RegGetValueW(hKey, nullptr, APP_NAME,\n                          RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | RRF_NOEXPAND,\n                          &type, value.data(), &readSize);"
+          )
+
+          tray = Path("src/TrayIcon.cpp")
+          text = tray.read_text(encoding="utf-8")
+          text = text.replace("#include <strsafe.h>\n", "#include <strsafe.h>\n#include <array>\n#include <string_view>\n", 1)
+          text = text.replace("    auto append = [&status](const std::wstring& value) {\n        if (!value.empty()) {\n            status += L\" \\x2022 \";\n            status += value;\n        }\n    };",
+                              "    auto append = [&status](std::wstring_view value) {\n        if (!value.empty()) {\n            status += L\" • \";\n            status.append(value);\n        }\n    };", 1)
+          text = text.replace("            wchar_t part[64] = {};\n            StringCchPrintfW(part, _countof(part), L\"%s/%lu%c\",",
+                              "            std::array<wchar_t, 64> part{};\n            StringCchPrintfW(part.data(), part.size(), L\"%s/%lu%c\",", 1)
+          text = text.replace("            append(part);", "            append(part.data());", 1)
+          text = text.replace("                wchar_t part[96] = {};", "                std::array<wchar_t, 96> part{};", 1)
+          text = text.replace("StringCchPrintfW(part, _countof(part),", "StringCchPrintfW(part.data(), part.size(),", 2)
+          text = text.replace("                append(part);", "                append(part.data());", 1)
+          text = text.replace("            wchar_t part[128] = {};", "            std::array<wchar_t, 128> part{};", 1)
+          text = text.replace("StringCchPrintfW(part, _countof(part),", "StringCchPrintfW(part.data(), part.size(),", 2)
+          text = text.replace("            append(part);", "            append(part.data());", 1)
+          tray.write_text(text, encoding="utf-8")
+
+          version = Path("src/Version.h")
+          text = version.read_text(encoding="utf-8")
+          old = """#if VER_PATCH == 0
+#define VER_VERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR)
+#else
+#define VER_VERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR) "." EVERON_STRINGIZE(VER_PATCH)
+#endif
+
+#define VER_VERSION_STR_W EVERON_WIDEN(VER_VERSION_STR)
+"""
+          new = """#if VER_PATCH == 0
+#define VER_VERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR)
+#define VER_VERSION_STR_W EVERON_WIDEN(EVERON_STRINGIZE(VER_MAJOR)) L"." EVERON_WIDEN(EVERON_STRINGIZE(VER_MINOR))
+#else
+#define VER_VERSION_STR EVERON_STRINGIZE(VER_MAJOR) "." EVERON_STRINGIZE(VER_MINOR) "." EVERON_STRINGIZE(VER_PATCH)
+#define VER_VERSION_STR_W EVERON_WIDEN(EVERON_STRINGIZE(VER_MAJOR)) L"." EVERON_WIDEN(EVERON_STRINGIZE(VER_MINOR)) L"." EVERON_WIDEN(EVERON_STRINGIZE(VER_PATCH))
+#endif
+"""
+          if old not in text:
+              raise SystemExit("Version macro block not found")
+          version.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+      - name: Verify source changes
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --get \
-            'https://sonarcloud.io/api/issues/search' \
-            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
-            --data-urlencode 'pullRequest=15' \
-            --data-urlencode 'resolved=false' \
-            --data-urlencode 'ps=100' \
-            | jq '{total, issues: [.issues[] | {key, rule, severity, type, component, line, message, impacts}]}'
+          grep -q 'const auto& loc = Localization::Instance();' src/App.cpp
+          grep -q 'RegGetValueW' src/Settings.cpp
+          grep -q 'std::wstring_view value' src/TrayIcon.cpp
+          grep -q 'std::array<wchar_t, 128>' src/TrayIcon.cpp
+          grep -q 'EVERON_WIDEN(EVERON_STRINGIZE(VER_MAJOR))' src/Version.h
+
+      - name: Commit source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git add src/App.cpp src/Settings.cpp src/TrayIcon.cpp src/Version.h
+          git commit -m "Resolve Sonar reliability findings"
+          git push origin HEAD:codex/audit-fixes
