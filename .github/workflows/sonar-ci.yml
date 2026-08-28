@@ -1,0 +1,57 @@
+name: Sonar CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonar-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    if: vars.SONAR_CI_ENABLED == 'true'
+    runs-on: windows-2025
+    env:
+      SONAR_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure
+        run: cmake -S . -B build -A x64 -T v143 -DBUILD_TESTING=ON -DEVERON_WARNINGS_AS_ERRORS=ON
+
+      - name: Install Sonar build wrapper
+        uses: SonarSource/sonarqube-scan-action/install-build-wrapper@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+
+      - name: Build
+        run: build-wrapper-win-x86-64.exe --out-dir build-wrapper cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Collect native coverage
+        shell: pwsh
+        run: ./scripts/collect-coverage.ps1
+
+      - name: Analyze
+        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+        with:
+          args: >-
+            -Dsonar.projectKey=StanleyLl0yd_everon
+            -Dsonar.organization=stanleyll0yd
+            -Dsonar.sources=src,tests
+            -Dsonar.exclusions=src/resource.h,src/Version.h
+            -Dsonar.sourceEncoding=UTF-8
+            -Dsonar.cfamily.reportingCppStandardOverride=c++20
+            -Dsonar.cfamily.compile-commands=build-wrapper/compile_commands.json
+            -Dsonar.cfamily.vscoveragexml.reportsPath=coverage/coverage.xml
