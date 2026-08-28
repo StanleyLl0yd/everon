@@ -181,7 +181,7 @@ void TrayIcon::UpdateTooltip(const Settings& settings,
         return;
     }
 
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
     std::wstring status = settings.IsEnabled()
         ? loc.GetString(StringID::TooltipEnabled)
         : loc.GetString(StringID::TooltipDisabled);
@@ -303,7 +303,7 @@ void TrayIcon::ShowContextMenu() {
         return;
     }
 
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, m_statusText.c_str());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 

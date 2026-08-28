@@ -5,12 +5,15 @@
 
 namespace {
 
-int g_failures = 0;
+int& Failures() {
+    static int failures = 0;
+    return failures;
+}
 
 void Expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "FAILED: " << message << '\n';
-        ++g_failures;
+        ++Failures();
     }
 }
 
@@ -43,7 +46,7 @@ int main() {
 
     localization.SetLanguage(Language::English);
 
-    if (g_failures == 0) {
+    if (Failures() == 0) {
         std::cout << "All Localization tests passed.\n";
         return 0;
     }

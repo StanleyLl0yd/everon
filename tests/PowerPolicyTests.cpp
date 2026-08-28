@@ -4,12 +4,15 @@
 
 namespace {
 
-int g_failures = 0;
+int& Failures() {
+    static int failures = 0;
+    return failures;
+}
 
 void Expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "FAILED: " << message << '\n';
-        ++g_failures;
+        ++Failures();
     }
 }
 
@@ -58,7 +61,7 @@ int main() {
     Expect(!decision.preventSystemSleep && !decision.keepDisplayOn,
            "disabled app should never request keep-awake state");
 
-    if (g_failures == 0) {
+    if (Failures() == 0) {
         std::cout << "All PowerPolicy tests passed.\n";
         return 0;
     }

@@ -1,4 +1,4 @@
-#include <Windows.h>
+#include <windows.h>
 #include <format>
 #include <iostream>
 #include <string>
@@ -8,12 +8,15 @@
 
 namespace {
 
-int g_failures = 0;
+int& Failures() {
+    static int failures = 0;
+    return failures;
+}
 
 void Expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "FAILED: " << message << '\n';
-        ++g_failures;
+        ++Failures();
     }
 }
 
@@ -21,7 +24,7 @@ void DeleteTestKey(const std::wstring& path) {
     const LONG result = RegDeleteTreeW(HKEY_CURRENT_USER, path.c_str());
     if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND) {
         std::cerr << "FAILED: unable to remove test registry key\n";
-        ++g_failures;
+        ++Failures();
     }
 }
 
@@ -179,7 +182,7 @@ int main() {
     DeleteTestKey(testPath);
     Localization::Instance().SetLanguage(Language::English);
 
-    if (g_failures == 0) {
+    if (Failures() == 0) {
         std::cout << "All Settings tests passed.\n";
         return 0;
     }
