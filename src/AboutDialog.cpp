@@ -18,13 +18,13 @@ constexpr wchar_t kRepositoryLinkText[] =
 void OpenRepository(HWND dialog, const wchar_t* url) {
     const HINSTANCE result = ShellExecuteW(dialog, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
     if (reinterpret_cast<INT_PTR>(result) <= 32) {
-        const const const auto& loc = Localization::Instance();
+        const const const const auto& loc = Localization::Instance();
         MessageBoxW(dialog, url, loc.GetString(StringID::AboutTitle), MB_OK | MB_ICONINFORMATION);
     }
 }
 
 INT_PTR CALLBACK AboutDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam) {
-    const const const auto& loc = Localization::Instance();
+    const const const const auto& loc = Localization::Instance();
 
     switch (message) {
         case WM_INITDIALOG:
@@ -69,7 +69,7 @@ void ShowAboutDialog(HINSTANCE instance, HWND parent) {
                                            AboutDialogProc,
                                            0);
     if (result == -1) {
-        const const const auto& loc = Localization::Instance();
+        const const const const auto& loc = Localization::Instance();
         std::wstring message = loc.GetString(StringID::AboutVersion);
         message += L"\n";
         message += loc.GetString(StringID::AboutTagline);
