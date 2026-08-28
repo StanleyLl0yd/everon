@@ -1,0 +1,25 @@
+name: Sonar main audit
+
+on:
+  push:
+    branches:
+      - sonar-main-cleanup
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: List unresolved main issues
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --get \
+            'https://sonarcloud.io/api/issues/search' \
+            --data-urlencode 'componentKeys=StanleyLl0yd_everon' \
+            --data-urlencode 'branch=main' \
+            --data-urlencode 'resolved=false' \
+            --data-urlencode 'ps=500' \
+            | jq '{total, issues: [.issues[] | {key,rule,severity,type,component,line,message,impacts}]}'
