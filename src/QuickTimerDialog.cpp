@@ -6,6 +6,8 @@
 #include "resource.h"
 #include <commctrl.h>
 
+#include <bit>
+
 namespace Everon {
 
 namespace {
@@ -35,16 +37,18 @@ void UpdateUntilHint(HWND dialog) {
 }
 
 INT_PTR CALLBACK DurationDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam) {
-    auto* state = reinterpret_cast<DurationDialogState*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
+    using enum StringID;
+
+    auto* state = std::bit_cast<DurationDialogState*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
 
     if (message == WM_INITDIALOG) {
-        state = reinterpret_cast<DurationDialogState*>(lParam);
+        state = std::bit_cast<DurationDialogState*>(lParam);
         SetWindowLongPtrW(dialog, GWLP_USERDATA, lParam);
-        auto& loc = Localization::Instance();
-        SetWindowTextW(dialog, loc.GetString(StringID::QuickDurationTitle));
-        SetDlgItemTextW(dialog, IDC_QUICK_DURATION_LABEL, loc.GetString(StringID::QuickDurationLabel));
-        SetDlgItemTextW(dialog, IDOK, loc.GetString(StringID::ButtonOK));
-        SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(StringID::ButtonCancel));
+        const auto& loc = Localization::Instance();
+        SetWindowTextW(dialog, loc.GetString(QuickDurationTitle));
+        SetDlgItemTextW(dialog, IDC_QUICK_DURATION_LABEL, loc.GetString(QuickDurationLabel));
+        SetDlgItemTextW(dialog, IDOK, loc.GetString(ButtonOK));
+        SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(ButtonCancel));
         SetDlgItemInt(dialog, IDC_QUICK_DURATION_EDIT, state->minutes, FALSE);
         Utils::CenterWindowOnMonitor(dialog, GetWindow(dialog, GW_OWNER));
         return TRUE;
@@ -60,10 +64,10 @@ INT_PTR CALLBACK DurationDialogProc(HWND dialog, UINT message, WPARAM wParam, LP
             const UINT minutes = GetDlgItemInt(dialog, IDC_QUICK_DURATION_EDIT, &translated, FALSE);
             if (!translated || minutes < TimerConfig::MIN_DURATION_MIN ||
                 minutes > TimerConfig::MAX_DURATION_MIN) {
-                auto& loc = Localization::Instance();
+                const auto& loc = Localization::Instance();
                 MessageBoxW(dialog,
-                            loc.GetString(StringID::ErrorInvalidTimerDuration),
-                            loc.GetString(StringID::ErrorInvalidTimerTitle),
+                            loc.GetString(ErrorInvalidTimerDuration),
+                            loc.GetString(ErrorInvalidTimerTitle),
                             MB_OK | MB_ICONWARNING);
                 SetFocus(GetDlgItem(dialog, IDC_QUICK_DURATION_EDIT));
                 return TRUE;
@@ -82,16 +86,18 @@ INT_PTR CALLBACK DurationDialogProc(HWND dialog, UINT message, WPARAM wParam, LP
 }
 
 INT_PTR CALLBACK UntilDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam) {
-    auto* state = reinterpret_cast<UntilDialogState*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
+    using enum StringID;
+
+    auto* state = std::bit_cast<UntilDialogState*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
 
     if (message == WM_INITDIALOG) {
-        state = reinterpret_cast<UntilDialogState*>(lParam);
+        state = std::bit_cast<UntilDialogState*>(lParam);
         SetWindowLongPtrW(dialog, GWLP_USERDATA, lParam);
-        auto& loc = Localization::Instance();
-        SetWindowTextW(dialog, loc.GetString(StringID::QuickUntilTitle));
-        SetDlgItemTextW(dialog, IDC_QUICK_UNTIL_LABEL, loc.GetString(StringID::QuickUntilLabel));
-        SetDlgItemTextW(dialog, IDOK, loc.GetString(StringID::ButtonOK));
-        SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(StringID::ButtonCancel));
+        const auto& loc = Localization::Instance();
+        SetWindowTextW(dialog, loc.GetString(QuickUntilTitle));
+        SetDlgItemTextW(dialog, IDC_QUICK_UNTIL_LABEL, loc.GetString(QuickUntilLabel));
+        SetDlgItemTextW(dialog, IDOK, loc.GetString(ButtonOK));
+        SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(ButtonCancel));
         DateTime_SetSystemtime(GetDlgItem(dialog, IDC_QUICK_UNTIL_TIME), GDT_VALID, &state->time);
         UpdateUntilHint(dialog);
         Utils::CenterWindowOnMonitor(dialog, GetWindow(dialog, GW_OWNER));
@@ -103,8 +109,8 @@ INT_PTR CALLBACK UntilDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARA
     }
 
     if (message == WM_NOTIFY) {
-        const auto* header = reinterpret_cast<const NMHDR*>(lParam);
-        if (header && header->idFrom == IDC_QUICK_UNTIL_TIME && header->code == DTN_DATETIMECHANGE) {
+        if (const auto* header = std::bit_cast<const NMHDR*>(lParam);
+            header && header->idFrom == IDC_QUICK_UNTIL_TIME && header->code == DTN_DATETIMECHANGE) {
             UpdateUntilHint(dialog);
             return TRUE;
         }
@@ -141,10 +147,10 @@ INT_PTR CALLBACK UntilDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARA
 bool ShowQuickDurationDialog(HINSTANCE instance, HWND parent, DWORD initialMinutes, DWORD& minutes) {
     DurationDialogState state;
     state.minutes = initialMinutes;
-    const INT_PTR result = DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_QUICK_DURATION),
-                                           parent, DurationDialogProc,
-                                           reinterpret_cast<LPARAM>(&state));
-    if (result != IDOK) {
+    if (const auto result = DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_QUICK_DURATION),
+                                             parent, DurationDialogProc,
+                                             std::bit_cast<LPARAM>(&state));
+        result != IDOK) {
         return false;
     }
     minutes = state.minutes;
@@ -157,10 +163,10 @@ bool ShowQuickUntilDialog(HINSTANCE instance, HWND parent, const SYSTEMTIME& ini
     if (state.time.wYear == 0) {
         GetLocalTime(&state.time);
     }
-    const INT_PTR result = DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_QUICK_UNTIL),
-                                           parent, UntilDialogProc,
-                                           reinterpret_cast<LPARAM>(&state));
-    if (result != IDOK) {
+    if (const auto result = DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_QUICK_UNTIL),
+                                             parent, UntilDialogProc,
+                                             std::bit_cast<LPARAM>(&state));
+        result != IDOK) {
         return false;
     }
     untilTime = state.time;

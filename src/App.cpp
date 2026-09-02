@@ -9,6 +9,7 @@
 #include "TimerMode.h"
 #include "resource.h"
 #include <commctrl.h>
+#include <bit>
 
 namespace Everon {
 
@@ -29,7 +30,7 @@ bool App::SaveSettings() {
     }
 
     Utils::DebugLog(L"[Everon] Failed to save settings to registry\n");
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
 
     if (m_trayIcon) {
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
@@ -78,7 +79,7 @@ bool App::ExpireTimerIfNeeded() {
         return false;
     }
 
-    const TimerConfig timer = m_settings.GetTimerConfig();
+    const auto timer = m_settings.GetTimerConfig();
     if (timer.mode == TimerMode::Indefinite || !timer.IsExpired()) {
         return false;
     }
@@ -98,7 +99,7 @@ bool App::ExpireTimerIfNeeded() {
     UpdatePowerState();
     if (m_trayIcon) {
         m_trayIcon->SetEnabled(false);
-        auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::NotifyTimerExpired), NIIF_INFO);
     }
@@ -112,7 +113,7 @@ void App::DisableAfterTimerFailure() {
     }
 
     m_settings.SetEnabled(false);
-    TimerConfig timer = m_settings.GetTimerConfig();
+    auto timer = m_settings.GetTimerConfig();
     timer.startTime = {};
     timer.endTimeUtc = 0;
     timer.monotonicDeadlineMs = 0;
@@ -217,12 +218,12 @@ LRESULT CALLBACK App::WindowProc(HWND window, UINT message,
     App* app = nullptr;
 
     if (message == WM_CREATE) {
-        auto createStruct = reinterpret_cast<CREATESTRUCTW*>(lParam);
+        const auto* createStruct = std::bit_cast<CREATESTRUCTW*>(lParam);
         app = static_cast<App*>(createStruct->lpCreateParams);
-        SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(app));
+        SetWindowLongPtrW(window, GWLP_USERDATA, std::bit_cast<LONG_PTR>(app));
         app->m_window = window;
     } else {
-        app = reinterpret_cast<App*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+        app = std::bit_cast<App*>(GetWindowLongPtrW(window, GWLP_USERDATA));
     }
 
     if (!app) {
@@ -255,6 +256,8 @@ LRESULT CALLBACK App::WindowProc(HWND window, UINT message,
         case WM_DESTROY:
             app->OnDestroy();
             return 0;
+        default:
+            break;
     }
 
     return DefWindowProcW(window, message, wParam, lParam);
@@ -273,7 +276,7 @@ bool App::OnCreate() {
     m_trayIcon->SetExitCallback([this]() { Exit(); });
 
     if (!m_trayIcon->Add()) {
-        auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         MessageBoxW(nullptr,
                     loc.GetString(StringID::ErrorTrayIcon),
                     loc.GetString(StringID::ErrorTitle),
@@ -321,7 +324,7 @@ void App::OnTimer(UINT_PTR timerId) {
             return;
         }
         if (m_settings.IsEnabled()) {
-            const TimerConfig timer = m_settings.GetTimerConfig();
+            const auto timer = m_settings.GetTimerConfig();
             if (timer.mode != TimerMode::Indefinite && !m_expireTimerArmed) {
                 ArmExpireTimer(timer);
             }
@@ -339,8 +342,7 @@ void App::OnTimer(UINT_PTR timerId) {
         if (m_pausedByBatterySaver) {
             return;
         }
-        const WORD vk = m_settings.GetVirtualKey();
-        if (vk != 0) {
+        if (const auto vk = m_settings.GetVirtualKey(); vk != 0) {
             if (m_powerManager.SendKeyPress(vk)) {
                 m_keyPressFailureNotified = false;
             } else {
@@ -390,7 +392,7 @@ void App::ToggleEnabled() {
     m_settings.SetEnabled(newEnabled);
 
     if (newEnabled) {
-        TimerConfig timer = m_settings.GetTimerConfig();
+        auto timer = m_settings.GetTimerConfig();
         if (timer.mode != TimerMode::Indefinite) {
             timer.ResetStartTime();
         } else {
@@ -406,7 +408,7 @@ void App::ToggleEnabled() {
         StopTimer();
         UpdatePowerState();
 
-        TimerConfig timer = m_settings.GetTimerConfig();
+        auto timer = m_settings.GetTimerConfig();
         timer.startTime = {};
         timer.endTimeUtc = 0;
         timer.monotonicDeadlineMs = 0;
@@ -419,7 +421,7 @@ void App::ToggleEnabled() {
         RefreshStatus();
 
         if (m_settings.GetShowToggleNotifications()) {
-            auto& loc = Localization::Instance();
+            const auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(
                 loc.GetString(StringID::ErrorTitle),
                 m_settings.IsEnabled() ? loc.GetString(StringID::NotifyEnabled)
@@ -435,7 +437,7 @@ void App::SetQuickDuration(DWORD minutes) {
     }
 
     const bool wasEnabled = m_settings.IsEnabled();
-    TimerConfig timer = m_settings.GetTimerConfig();
+    auto timer = m_settings.GetTimerConfig();
     timer.mode = TimerMode::Duration;
     timer.durationMinutes = minutes;
     timer.ResetStartTime();
@@ -451,7 +453,7 @@ void App::SetQuickDuration(DWORD minutes) {
         RefreshStatus();
 
         if (!wasEnabled && m_settings.GetShowToggleNotifications()) {
-            auto& loc = Localization::Instance();
+            const auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                          loc.GetString(StringID::NotifyEnabled), NIIF_INFO);
         }
@@ -460,7 +462,7 @@ void App::SetQuickDuration(DWORD minutes) {
 
 void App::SetQuickUntil(const SYSTEMTIME& untilTime) {
     const bool wasEnabled = m_settings.IsEnabled();
-    TimerConfig timer = m_settings.GetTimerConfig();
+    auto timer = m_settings.GetTimerConfig();
     timer.mode = TimerMode::UntilTime;
     timer.untilTime = untilTime;
     timer.ResetStartTime();
@@ -476,7 +478,7 @@ void App::SetQuickUntil(const SYSTEMTIME& untilTime) {
         RefreshStatus();
 
         if (!wasEnabled && m_settings.GetShowToggleNotifications()) {
-            auto& loc = Localization::Instance();
+            const auto& loc = Localization::Instance();
             m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                          loc.GetString(StringID::NotifyEnabled), NIIF_INFO);
         }
@@ -484,7 +486,7 @@ void App::SetQuickUntil(const SYSTEMTIME& untilTime) {
 }
 
 void App::ShowCustomDuration() {
-    TimerConfig timer = m_settings.GetTimerConfig();
+    auto timer = m_settings.GetTimerConfig();
     DWORD minutes = timer.mode == TimerMode::Duration ? timer.durationMinutes : 60;
     if (ShowQuickDurationDialog(m_instance, m_window, minutes, minutes)) {
         SetQuickDuration(minutes);
@@ -492,7 +494,7 @@ void App::ShowCustomDuration() {
 }
 
 void App::ShowQuickUntil() {
-    TimerConfig timer = m_settings.GetTimerConfig();
+    auto timer = m_settings.GetTimerConfig();
     SYSTEMTIME untilTime = timer.untilTime;
     if (untilTime.wYear == 0) {
         GetLocalTime(&untilTime);
@@ -601,16 +603,15 @@ void App::StartTimer() {
         return;
     }
 
-    const WORD vk = m_settings.GetVirtualKey();
-    const UINT periodSec = m_settings.GetPeriodSec();
-    if (vk != 0 && periodSec > 0) {
+    const auto vk = m_settings.GetVirtualKey();
+    if (const auto periodSec = m_settings.GetPeriodSec(); vk != 0 && periodSec > 0) {
         const UINT intervalMs = periodSec * 1000U;
         if (Utils::SetTimerChecked(m_window, TIMER_ID_KEYPRESS, intervalMs) == 0) {
             NotifyKeyPressFailure();
         }
     }
 
-    TimerConfig timer = m_settings.GetTimerConfig();
+    auto timer = m_settings.GetTimerConfig();
     if (timer.mode == TimerMode::Indefinite) {
         return;
     }
@@ -659,19 +660,19 @@ void App::RefreshStatus() {
 PowerContext App::QueryPowerContext() const noexcept {
     SYSTEM_POWER_STATUS status = {};
     if (!GetSystemPowerStatus(&status) || status.ACLineStatus == 255) {
-        PowerContext unknown;
+        auto unknown = PowerContext{};
         unknown.statusKnown = false;
         return unknown;
     }
 
-    PowerContext context;
+    auto context = PowerContext{};
     context.onBattery = status.ACLineStatus == 0;
     context.batterySaver = status.SystemStatusFlag != 0;
     return context;
 }
 
 bool App::UpdatePowerState() {
-    const PowerDecision decision = EvaluatePowerPolicy(
+    const auto decision = EvaluatePowerPolicy(
         m_settings.IsEnabled(),
         m_settings.GetKeepDisplayOn(),
         m_settings.GetRespectBatterySaver(),
@@ -691,7 +692,7 @@ bool App::UpdatePowerState() {
 
     Utils::SetTimerChecked(m_window, TIMER_ID_POWER_RETRY, POWER_RETRY_INTERVAL_MS);
     if (!m_powerFailureNotified && m_trayIcon) {
-        auto& loc = Localization::Instance();
+        const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::ErrorPowerState), NIIF_WARNING);
         m_powerFailureNotified = true;
@@ -704,11 +705,10 @@ void App::RegisterHotkey() {
         return;
     }
 
-    HotkeyConfig config = m_settings.GetHotkeyConfig();
-    const bool ok = m_hotkeyManager->RegisterHotkey(config, [this]() { ToggleEnabled(); });
-
-    if (!ok && config.enabled && config.IsValid() && m_trayIcon) {
-        auto& loc = Localization::Instance();
+    const auto config = m_settings.GetHotkeyConfig();
+    if (const bool ok = m_hotkeyManager->RegisterHotkey(config, [this]() { ToggleEnabled(); });
+        !ok && config.enabled && config.IsValid() && m_trayIcon) {
+        const auto& loc = Localization::Instance();
         m_trayIcon->ShowNotification(loc.GetString(StringID::ErrorTitle),
                                      loc.GetString(StringID::NotifyHotkeyFailed), NIIF_WARNING);
     }

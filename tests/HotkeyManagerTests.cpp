@@ -3,12 +3,15 @@
 #include "HotkeyManager.h"
 
 namespace {
-int g_failures = 0;
+int& Failures() {
+    static int failures = 0;
+    return failures;
+}
 
 void Expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "FAILED: " << message << '\n';
-        ++g_failures;
+        ++Failures();
     }
 }
 }
@@ -37,7 +40,7 @@ int main() {
     badKey.virtualKey = 0x100U;
     Expect(!badKey.IsValid(), "virtual keys outside one byte should be rejected");
 
-    if (g_failures == 0) {
+    if (Failures() == 0) {
         std::cout << "All HotkeyManager tests passed.\n";
         return 0;
     }

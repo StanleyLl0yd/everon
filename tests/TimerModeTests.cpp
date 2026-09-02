@@ -1,15 +1,17 @@
-#include <Windows.h>
 #include <iostream>
 #include "TimerMode.h"
 
 namespace {
 
-int g_failures = 0;
+int& Failures() {
+    static int failures = 0;
+    return failures;
+}
 
 void Expect(bool condition, const char* message) {
     if (!condition) {
         std::cerr << "FAILED: " << message << '\n';
-        ++g_failures;
+        ++Failures();
     }
 }
 
@@ -212,11 +214,11 @@ int main() {
     Expect(ComputeNextUntilUtcForTesting(springNow, springUntil, RejectLocalToUtc) == 0,
            "timer conversion should fail closed when no valid local time can be resolved");
 
-    if (g_failures == 0) {
+    if (Failures() == 0) {
         std::cout << "All TimerMode tests passed.\n";
         return 0;
     }
 
-    std::cerr << g_failures << " test(s) failed.\n";
+    std::cerr << Failures() << " test(s) failed.\n";
     return 1;
 }

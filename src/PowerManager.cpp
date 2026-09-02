@@ -19,7 +19,7 @@ bool PowerManager::PreventSleep(bool keepDisplayOn) {
     }
 
     if (SetThreadExecutionState(flags) == 0) {
-        Utils::DebugLog(L"[Everon] Failed to prevent sleep: %lu\n", GetLastError());
+        Utils::DebugLog(L"[Everon] Failed to prevent sleep: {}\n", GetLastError());
         return false;
     }
 
@@ -34,7 +34,7 @@ bool PowerManager::AllowSleep() {
     }
 
     if (SetThreadExecutionState(ES_CONTINUOUS) == 0) {
-        Utils::DebugLog(L"[Everon] Failed to restore normal sleep behavior: %lu\n", GetLastError());
+        Utils::DebugLog(L"[Everon] Failed to restore normal sleep behavior: {}\n", GetLastError());
         return false;
     }
 
@@ -58,7 +58,7 @@ bool PowerManager::SendKeyPress(WORD virtualKey) const {
 
     if (const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
         sent != static_cast<UINT>(inputs.size())) {
-        Utils::DebugLog(L"[Everon] SendInput failed/sent %u: %lu\n", sent, GetLastError());
+        Utils::DebugLog(L"[Everon] SendInput failed/sent {}: {}\n", sent, GetLastError());
         return false;
     }
     return true;

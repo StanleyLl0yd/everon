@@ -7,6 +7,9 @@
 #include "resource.h"
 #include <commctrl.h>
 
+#include <array>
+#include <bit>
+
 namespace Everon {
 
 SettingsDialog::SettingsDialog(HINSTANCE instance)
@@ -15,11 +18,11 @@ SettingsDialog::SettingsDialog(HINSTANCE instance)
 
 bool SettingsDialog::Show(HWND parent, Settings& settings) {
     m_settings = &settings;
-    const Language oldLang = m_settings->GetLanguage();
-    const bool oldDirty = m_settings->IsDirty();
+    const auto oldLang = m_settings->GetLanguage();
+    const auto oldDirty = m_settings->IsDirty();
 
-    INT_PTR result = DialogBoxParamW(m_instance, MAKEINTRESOURCEW(IDD_SETTINGS),
-                                    parent, DialogProc, reinterpret_cast<LPARAM>(this));
+    const auto result = DialogBoxParamW(m_instance, MAKEINTRESOURCEW(IDD_SETTINGS),
+                                        parent, DialogProc, std::bit_cast<LPARAM>(this));
 
     if (result != IDOK) {
         m_settings->SetLanguage(oldLang);
@@ -31,15 +34,14 @@ bool SettingsDialog::Show(HWND parent, Settings& settings) {
 }
 
 INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
-                                           WPARAM wParam, LPARAM lParam) {
-    SettingsDialog* instance = nullptr;
+                                            WPARAM wParam, LPARAM lParam) {
+    const SettingsDialog* instance = nullptr;
 
     if (message == WM_INITDIALOG) {
-        instance = reinterpret_cast<SettingsDialog*>(lParam);
+        instance = std::bit_cast<const SettingsDialog*>(lParam);
         SetWindowLongPtrW(dialog, GWLP_USERDATA, lParam);
     } else {
-        instance = reinterpret_cast<SettingsDialog*>(
-            GetWindowLongPtrW(dialog, GWLP_USERDATA));
+        instance = std::bit_cast<const SettingsDialog*>(GetWindowLongPtrW(dialog, GWLP_USERDATA));
     }
 
     if (!instance) {
@@ -50,6 +52,7 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
         case WM_INITDIALOG:
             instance->OnInitDialog(dialog);
             return TRUE;
+
         case WM_COMMAND:
             switch (LOWORD(wParam)) {
                 case IDOK:
@@ -57,24 +60,29 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
                         EndDialog(dialog, IDOK);
                     }
                     return TRUE;
+
                 case IDCANCEL:
                     EndDialog(dialog, IDCANCEL);
                     return TRUE;
+
                 case IDC_LANGUAGE_COMBO:
                     if (HIWORD(wParam) == CBN_SELCHANGE) {
                         instance->OnLanguageChanged(dialog);
                     }
                     return TRUE;
+
                 case IDC_KEY_COMBO:
                     if (HIWORD(wParam) == CBN_SELCHANGE) {
                         instance->OnKeyPressChanged(dialog);
                     }
                     return TRUE;
+
                 case IDC_KEEPDISPLAY_CHECK:
                     if (HIWORD(wParam) == BN_CLICKED) {
                         instance->UpdatePowerControlsState(dialog);
                     }
                     return TRUE;
+
                 case IDC_TIMER_INDEFINITE:
                 case IDC_TIMER_DURATION:
                 case IDC_TIMER_UNTIL:
@@ -82,38 +90,44 @@ INT_PTR CALLBACK SettingsDialog::DialogProc(HWND dialog, UINT message,
                         instance->OnTimerModeChanged(dialog);
                     }
                     return TRUE;
+
+                default:
+                    break;
             }
             break;
-        case WM_NOTIFY: {
-            const auto* header = reinterpret_cast<const NMHDR*>(lParam);
-            if (header && header->idFrom == IDC_TIMER_UNTIL_TIME &&
+
+        case WM_NOTIFY:
+            if (const auto* header = std::bit_cast<const NMHDR*>(lParam);
+                header && header->idFrom == IDC_TIMER_UNTIL_TIME &&
                 header->code == DTN_DATETIMECHANGE) {
                 instance->UpdateUntilHint(dialog);
                 return TRUE;
             }
             break;
-        }
+
+        default:
+            break;
     }
 
     return FALSE;
 }
 
-void SettingsDialog::OnInitDialog(HWND dialog) {
+void SettingsDialog::OnInitDialog(HWND dialog) const {
     if (!m_settings) {
         return;
     }
 
     SetDlgItemInt(dialog, IDC_PERIOD_EDIT, m_settings->GetPeriodSec(), FALSE);
     CheckDlgButton(dialog, IDC_KEEPDISPLAY_CHECK,
-                  m_settings->GetKeepDisplayOn() ? BST_CHECKED : BST_UNCHECKED);
+                   m_settings->GetKeepDisplayOn() ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dialog, IDC_RESPECT_BATTERY_SAVER,
-                  m_settings->GetRespectBatterySaver() ? BST_CHECKED : BST_UNCHECKED);
+                   m_settings->GetRespectBatterySaver() ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dialog, IDC_ALLOW_DISPLAY_BATTERY,
-                  m_settings->GetAllowDisplayOnBattery() ? BST_CHECKED : BST_UNCHECKED);
+                   m_settings->GetAllowDisplayOnBattery() ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dialog, IDC_NOTIFY_TOGGLE_CHECK,
-                  m_settings->GetShowToggleNotifications() ? BST_CHECKED : BST_UNCHECKED);
+                   m_settings->GetShowToggleNotifications() ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dialog, IDC_AUTOSTART_CHECK,
-                  m_settings->GetAutoStart() ? BST_CHECKED : BST_UNCHECKED);
+                   m_settings->GetAutoStart() ? BST_CHECKED : BST_UNCHECKED);
     PopulateLanguageComboBox(dialog);
     PopulateKeyComboBox(GetDlgItem(dialog, IDC_KEY_COMBO), m_settings->GetVirtualKey());
     UpdateKeyPressControlsState(dialog);
@@ -124,52 +138,51 @@ void SettingsDialog::OnInitDialog(HWND dialog) {
     Utils::CenterWindowOnMonitor(dialog, GetWindow(dialog, GW_OWNER));
 }
 
-void SettingsDialog::UpdateDialogText(HWND dialog) {
-    auto& loc = Localization::Instance();
-    SetWindowTextW(dialog, loc.GetString(StringID::SettingsTitle));
-    SetDlgItemTextW(dialog, IDC_LANGUAGE_LABEL, loc.GetString(StringID::SettingsLanguage));
-    SetDlgItemTextW(dialog, IDC_GENERAL_GROUP, loc.GetString(StringID::SettingsGeneral));
-    SetDlgItemTextW(dialog, IDC_PERIOD_LABEL, loc.GetString(StringID::SettingsPeriod));
-    SetDlgItemTextW(dialog, IDC_PERIOD_SECONDS_LABEL, loc.GetString(StringID::SettingsPeriodSeconds));
-    SetDlgItemTextW(dialog, IDC_KEYPRESS_LABEL, loc.GetString(StringID::SettingsKeyPress));
-    SetDlgItemTextW(dialog, IDC_KEEPDISPLAY_CHECK, loc.GetString(StringID::SettingsKeepDisplay));
-    SetDlgItemTextW(dialog, IDC_RESPECT_BATTERY_SAVER,
-                    loc.GetString(StringID::SettingsRespectBatterySaver));
-    SetDlgItemTextW(dialog, IDC_ALLOW_DISPLAY_BATTERY,
-                    loc.GetString(StringID::SettingsAllowDisplayOnBattery));
-    SetDlgItemTextW(dialog, IDC_NOTIFY_TOGGLE_CHECK, loc.GetString(StringID::SettingsNotifyOnToggle));
-    SetDlgItemTextW(dialog, IDC_AUTOSTART_CHECK, loc.GetString(StringID::SettingsAutoStart));
-    SetDlgItemTextW(dialog, IDC_TIMER_GROUP, loc.GetString(StringID::SettingsTimer));
-    SetDlgItemTextW(dialog, IDC_TIMER_INDEFINITE, loc.GetString(StringID::SettingsTimerIndefinite));
-    SetDlgItemTextW(dialog, IDC_TIMER_DURATION, loc.GetString(StringID::SettingsTimerDuration));
-    SetDlgItemTextW(dialog, IDC_TIMER_DURATION_LABEL, loc.GetString(StringID::SettingsTimerMinutes));
-    SetDlgItemTextW(dialog, IDC_TIMER_UNTIL, loc.GetString(StringID::SettingsTimerUntilTime));
-    SetDlgItemTextW(dialog, IDC_HOTKEYS_GROUP, loc.GetString(StringID::SettingsHotkeys));
-    SetDlgItemTextW(dialog, IDC_HOTKEY_LABEL, loc.GetString(StringID::SettingsHotkeyLabel));
-    SetDlgItemTextW(dialog, IDOK, loc.GetString(StringID::ButtonOK));
-    SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(StringID::ButtonCancel));
+void SettingsDialog::UpdateDialogText(HWND dialog) const {
+    using enum StringID;
+
+    const auto& loc = Localization::Instance();
+    SetWindowTextW(dialog, loc.GetString(SettingsTitle));
+    SetDlgItemTextW(dialog, IDC_LANGUAGE_LABEL, loc.GetString(SettingsLanguage));
+    SetDlgItemTextW(dialog, IDC_GENERAL_GROUP, loc.GetString(SettingsGeneral));
+    SetDlgItemTextW(dialog, IDC_PERIOD_LABEL, loc.GetString(SettingsPeriod));
+    SetDlgItemTextW(dialog, IDC_PERIOD_SECONDS_LABEL, loc.GetString(SettingsPeriodSeconds));
+    SetDlgItemTextW(dialog, IDC_KEYPRESS_LABEL, loc.GetString(SettingsKeyPress));
+    SetDlgItemTextW(dialog, IDC_KEEPDISPLAY_CHECK, loc.GetString(SettingsKeepDisplay));
+    SetDlgItemTextW(dialog, IDC_RESPECT_BATTERY_SAVER, loc.GetString(SettingsRespectBatterySaver));
+    SetDlgItemTextW(dialog, IDC_ALLOW_DISPLAY_BATTERY, loc.GetString(SettingsAllowDisplayOnBattery));
+    SetDlgItemTextW(dialog, IDC_NOTIFY_TOGGLE_CHECK, loc.GetString(SettingsNotifyOnToggle));
+    SetDlgItemTextW(dialog, IDC_AUTOSTART_CHECK, loc.GetString(SettingsAutoStart));
+    SetDlgItemTextW(dialog, IDC_TIMER_GROUP, loc.GetString(SettingsTimer));
+    SetDlgItemTextW(dialog, IDC_TIMER_INDEFINITE, loc.GetString(SettingsTimerIndefinite));
+    SetDlgItemTextW(dialog, IDC_TIMER_DURATION, loc.GetString(SettingsTimerDuration));
+    SetDlgItemTextW(dialog, IDC_TIMER_DURATION_LABEL, loc.GetString(SettingsTimerMinutes));
+    SetDlgItemTextW(dialog, IDC_TIMER_UNTIL, loc.GetString(SettingsTimerUntilTime));
+    SetDlgItemTextW(dialog, IDC_HOTKEYS_GROUP, loc.GetString(SettingsHotkeys));
+    SetDlgItemTextW(dialog, IDC_HOTKEY_LABEL, loc.GetString(SettingsHotkeyLabel));
+    SetDlgItemTextW(dialog, IDOK, loc.GetString(ButtonOK));
+    SetDlgItemTextW(dialog, IDCANCEL, loc.GetString(ButtonCancel));
     UpdateUntilHint(dialog);
 }
 
-void SettingsDialog::PopulateLanguageComboBox(HWND dialog) {
-    HWND combo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
+void SettingsDialog::PopulateLanguageComboBox(HWND dialog) const {
+    using enum Language;
+
+    const auto combo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
     SendMessageW(combo, CB_RESETCONTENT, 0, 0);
 
-    const Language languages[] = {
-        Language::English, Language::Russian, Language::French,
-        Language::German, Language::Italian, Language::Spanish
-    };
+    const std::array languages{English, Russian, French, German, Italian, Spanish};
 
     int selectedIndex = 0;
-    Language currentLang = m_settings->GetLanguage();
+    const auto currentLang = m_settings->GetLanguage();
 
-    for (size_t i = 0; i < _countof(languages); ++i) {
-        const wchar_t* name = Localization::GetLanguageName(languages[i]);
-        int index = static_cast<int>(SendMessageW(combo, CB_ADDSTRING, 0,
-                                                 reinterpret_cast<LPARAM>(name)));
-        SendMessageW(combo, CB_SETITEMDATA, index, static_cast<LPARAM>(languages[i]));
+    for (const auto language : languages) {
+        const auto* name = Localization::GetLanguageName(language);
+        const auto index = static_cast<int>(
+            SendMessageW(combo, CB_ADDSTRING, 0, std::bit_cast<LPARAM>(name)));
+        SendMessageW(combo, CB_SETITEMDATA, index, static_cast<LPARAM>(language));
 
-        if (languages[i] == currentLang) {
+        if (language == currentLang) {
             selectedIndex = index;
         }
     }
@@ -177,32 +190,32 @@ void SettingsDialog::PopulateLanguageComboBox(HWND dialog) {
     SendMessageW(combo, CB_SETCURSEL, selectedIndex, 0);
 }
 
-void SettingsDialog::PopulateKeyComboBox(HWND comboBox, WORD selectedKey) {
+void SettingsDialog::PopulateKeyComboBox(HWND comboBox, WORD selectedKey) const {
+    using enum StringID;
+
     SendMessageW(comboBox, CB_RESETCONTENT, 0, 0);
 
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
 
     struct KeyItem {
         const wchar_t* text;
         WORD virtualKey;
     };
 
-    const KeyItem items[] = {
-        { loc.GetString(StringID::SettingsKeyPressOff), 0 },
-        { L"F15", VK_F15 },
-        { L"F16", VK_F16 },
-        { L"F17", VK_F17 }
-    };
+    const std::array<KeyItem, 4> items{{
+        {loc.GetString(SettingsKeyPressOff), 0},
+        {L"F15", VK_F15},
+        {L"F16", VK_F16},
+        {L"F17", VK_F17},
+    }};
 
     int selectedIndex = 0;
 
-    for (size_t i = 0; i < _countof(items); ++i) {
-        const int index = static_cast<int>(
-            SendMessageW(comboBox, CB_ADDSTRING, 0,
-                        reinterpret_cast<LPARAM>(items[i].text))
-        );
-        SendMessageW(comboBox, CB_SETITEMDATA, index, items[i].virtualKey);
-        if (items[i].virtualKey == selectedKey) {
+    for (const auto& item : items) {
+        const auto index = static_cast<int>(
+            SendMessageW(comboBox, CB_ADDSTRING, 0, std::bit_cast<LPARAM>(item.text)));
+        SendMessageW(comboBox, CB_SETITEMDATA, index, item.virtualKey);
+        if (item.virtualKey == selectedKey) {
             selectedIndex = index;
         }
     }
@@ -210,11 +223,13 @@ void SettingsDialog::PopulateKeyComboBox(HWND comboBox, WORD selectedKey) {
     SendMessageW(comboBox, CB_SETCURSEL, selectedIndex, 0);
 }
 
-void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) {
-    HWND combo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
+void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) const {
+    using enum StringID;
+
+    const auto combo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
     SendMessageW(combo, CB_RESETCONTENT, 0, 0);
 
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
 
     struct HotkeyItem {
         const wchar_t* text;
@@ -222,27 +237,27 @@ void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) {
         UINT vk;
     };
 
-    const HotkeyItem items[] = {
-        { loc.GetString(StringID::SettingsHotkeyNone), 0, 0 },
-        { L"Ctrl+Shift+E", MOD_CONTROL | MOD_SHIFT, 'E' },
-        { L"Ctrl+Alt+E", MOD_CONTROL | MOD_ALT, 'E' },
-        { L"Alt+F12", MOD_ALT, VK_F12 },
-        { L"Ctrl+Shift+F12", MOD_CONTROL | MOD_SHIFT, VK_F12 },
-        { L"Win+Pause", MOD_WIN, VK_PAUSE },
-    };
+    const std::array<HotkeyItem, 6> items{{
+        {loc.GetString(SettingsHotkeyNone), 0, 0},
+        {L"Ctrl+Shift+E", MOD_CONTROL | MOD_SHIFT, 'E'},
+        {L"Ctrl+Alt+E", MOD_CONTROL | MOD_ALT, 'E'},
+        {L"Alt+F12", MOD_ALT, VK_F12},
+        {L"Ctrl+Shift+F12", MOD_CONTROL | MOD_SHIFT, VK_F12},
+        {L"Win+Pause", MOD_WIN, VK_PAUSE},
+    }};
 
-    HotkeyConfig currentHotkey = m_settings->GetHotkeyConfig();
+    const auto currentHotkey = m_settings->GetHotkeyConfig();
     int selectedIndex = 0;
 
-    for (size_t i = 0; i < _countof(items); ++i) {
-        int index = static_cast<int>(SendMessageW(combo, CB_ADDSTRING, 0,
-                                                 reinterpret_cast<LPARAM>(items[i].text)));
-        LPARAM data = MAKELPARAM(items[i].modifiers, items[i].vk);
+    for (const auto& item : items) {
+        const auto index = static_cast<int>(
+            SendMessageW(combo, CB_ADDSTRING, 0, std::bit_cast<LPARAM>(item.text)));
+        const auto data = MAKELPARAM(item.modifiers, item.vk);
         SendMessageW(combo, CB_SETITEMDATA, index, data);
 
         if (currentHotkey.enabled &&
-            items[i].modifiers == currentHotkey.modifiers &&
-            items[i].vk == currentHotkey.virtualKey) {
+            item.modifiers == currentHotkey.modifiers &&
+            item.vk == currentHotkey.virtualKey) {
             selectedIndex = index;
         }
     }
@@ -250,28 +265,28 @@ void SettingsDialog::PopulateHotkeyComboBox(HWND dialog) {
     SendMessageW(combo, CB_SETCURSEL, selectedIndex, 0);
 }
 
-void SettingsDialog::OnLanguageChanged(HWND dialog) {
-    HWND languageCombo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
-    const int languageIndex = static_cast<int>(SendMessageW(languageCombo, CB_GETCURSEL, 0, 0));
+void SettingsDialog::OnLanguageChanged(HWND dialog) const {
+    const auto languageCombo = GetDlgItem(dialog, IDC_LANGUAGE_COMBO);
+    const auto languageIndex = static_cast<int>(SendMessageW(languageCombo, CB_GETCURSEL, 0, 0));
     if (languageIndex < 0) {
         return;
     }
 
-    const Language language = static_cast<Language>(
+    const auto language = static_cast<Language>(
         SendMessageW(languageCombo, CB_GETITEMDATA, languageIndex, 0));
     if (language == m_settings->GetLanguage()) {
         return;
     }
 
-    HWND keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
-    const int keyIndex = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));
-    WORD selectedKey = m_settings->GetVirtualKey();
+    const auto keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
+    const auto keyIndex = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));
+    auto selectedKey = m_settings->GetVirtualKey();
     if (keyIndex >= 0) {
         selectedKey = static_cast<WORD>(SendMessageW(keyCombo, CB_GETITEMDATA, keyIndex, 0));
     }
 
-    HWND hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
-    const int hotkeyIndex = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCURSEL, 0, 0));
+    const auto hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
+    const auto hotkeyIndex = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCURSEL, 0, 0));
     LPARAM selectedHotkeyData = 0;
     if (hotkeyIndex >= 0) {
         selectedHotkeyData = SendMessageW(hotkeyCombo, CB_GETITEMDATA, hotkeyIndex, 0);
@@ -283,7 +298,7 @@ void SettingsDialog::OnLanguageChanged(HWND dialog) {
     UpdateKeyPressControlsState(dialog);
     PopulateHotkeyComboBox(dialog);
 
-    const int hotkeyCount = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCOUNT, 0, 0));
+    const auto hotkeyCount = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCOUNT, 0, 0));
     for (int i = 0; i < hotkeyCount; ++i) {
         if (SendMessageW(hotkeyCombo, CB_GETITEMDATA, i, 0) == selectedHotkeyData) {
             SendMessageW(hotkeyCombo, CB_SETCURSEL, i, 0);
@@ -292,31 +307,34 @@ void SettingsDialog::OnLanguageChanged(HWND dialog) {
     }
 }
 
-void SettingsDialog::OnKeyPressChanged(HWND dialog) {
+void SettingsDialog::OnKeyPressChanged(HWND dialog) const {
     UpdateKeyPressControlsState(dialog);
 }
 
-bool SettingsDialog::OnOkClicked(HWND dialog) {
+bool SettingsDialog::OnOkClicked(HWND dialog) const {
+    using enum StringID;
+    using enum TimerMode;
+
     if (!m_settings) {
         return false;
     }
 
-    auto& loc = Localization::Instance();
+    const auto& loc = Localization::Instance();
 
-    HWND keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
-    const int keySelection = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));
+    const auto keyCombo = GetDlgItem(dialog, IDC_KEY_COMBO);
+    const auto keySelection = static_cast<int>(SendMessageW(keyCombo, CB_GETCURSEL, 0, 0));
     WORD virtualKey = 0;
     if (keySelection >= 0) {
         virtualKey = static_cast<WORD>(SendMessageW(keyCombo, CB_GETITEMDATA, keySelection, 0));
     }
 
     BOOL translated = FALSE;
-    UINT period = GetDlgItemInt(dialog, IDC_PERIOD_EDIT, &translated, FALSE);
+    auto period = GetDlgItemInt(dialog, IDC_PERIOD_EDIT, &translated, FALSE);
     if (virtualKey != 0 && (!translated || !m_settings->IsValidPeriod(period))) {
         MessageBoxW(dialog,
-                   loc.GetString(StringID::ErrorInvalidPeriod),
-                   loc.GetString(StringID::ErrorInvalidPeriodTitle),
-                   MB_OK | MB_ICONWARNING);
+                    loc.GetString(ErrorInvalidPeriod),
+                    loc.GetString(ErrorInvalidPeriodTitle),
+                    MB_OK | MB_ICONWARNING);
         SetFocus(GetDlgItem(dialog, IDC_PERIOD_EDIT));
         return false;
     }
@@ -324,53 +342,53 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         period = m_settings->GetPeriodSec();
     }
 
-    const bool keepDisplayOn = IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED;
-    const bool respectBatterySaver =
+    const auto keepDisplayOn = IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED;
+    const auto respectBatterySaver =
         IsDlgButtonChecked(dialog, IDC_RESPECT_BATTERY_SAVER) == BST_CHECKED;
-    const bool allowDisplayOnBattery =
+    const auto allowDisplayOnBattery =
         IsDlgButtonChecked(dialog, IDC_ALLOW_DISPLAY_BATTERY) == BST_CHECKED;
-    const bool notifyOnToggle = IsDlgButtonChecked(dialog, IDC_NOTIFY_TOGGLE_CHECK) == BST_CHECKED;
-    const bool autoStart = IsDlgButtonChecked(dialog, IDC_AUTOSTART_CHECK) == BST_CHECKED;
+    const auto notifyOnToggle = IsDlgButtonChecked(dialog, IDC_NOTIFY_TOGGLE_CHECK) == BST_CHECKED;
+    const auto autoStart = IsDlgButtonChecked(dialog, IDC_AUTOSTART_CHECK) == BST_CHECKED;
 
-    HotkeyConfig hotkey = {};
-    HWND hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
-    const int hotkeySelection = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCURSEL, 0, 0));
-    if (hotkeySelection >= 0) {
-        const LPARAM data = SendMessageW(hotkeyCombo, CB_GETITEMDATA, hotkeySelection, 0);
+    HotkeyConfig hotkey{};
+    const auto hotkeyCombo = GetDlgItem(dialog, IDC_HOTKEY_COMBO);
+    if (const auto hotkeySelection = static_cast<int>(SendMessageW(hotkeyCombo, CB_GETCURSEL, 0, 0));
+        hotkeySelection >= 0) {
+        const auto data = SendMessageW(hotkeyCombo, CB_GETITEMDATA, hotkeySelection, 0);
         hotkey.modifiers = LOWORD(data);
         hotkey.virtualKey = HIWORD(data);
     }
     hotkey.enabled = hotkey.IsValid();
 
-    TimerConfig timer = m_settings->GetTimerConfig();
-    const TimerConfig oldTimer = timer;
+    auto timer = m_settings->GetTimerConfig();
+    const auto oldTimer = timer;
 
     if (IsDlgButtonChecked(dialog, IDC_TIMER_INDEFINITE) == BST_CHECKED) {
-        timer.mode = TimerMode::Indefinite;
+        timer.mode = Indefinite;
     } else if (IsDlgButtonChecked(dialog, IDC_TIMER_DURATION) == BST_CHECKED) {
-        timer.mode = TimerMode::Duration;
+        timer.mode = Duration;
 
         BOOL translatedDuration = FALSE;
-        const UINT duration = GetDlgItemInt(dialog, IDC_TIMER_DURATION_EDIT, &translatedDuration, FALSE);
+        const auto duration = GetDlgItemInt(dialog, IDC_TIMER_DURATION_EDIT, &translatedDuration, FALSE);
         if (!translatedDuration ||
             duration < TimerConfig::MIN_DURATION_MIN ||
             duration > TimerConfig::MAX_DURATION_MIN) {
             MessageBoxW(dialog,
-                       loc.GetString(StringID::ErrorInvalidTimerDuration),
-                       loc.GetString(StringID::ErrorInvalidTimerTitle),
-                       MB_OK | MB_ICONWARNING);
+                        loc.GetString(ErrorInvalidTimerDuration),
+                        loc.GetString(ErrorInvalidTimerTitle),
+                        MB_OK | MB_ICONWARNING);
             return false;
         }
         timer.durationMinutes = duration;
     } else if (IsDlgButtonChecked(dialog, IDC_TIMER_UNTIL) == BST_CHECKED) {
-        timer.mode = TimerMode::UntilTime;
+        timer.mode = UntilTime;
 
-        HWND timePicker = GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME);
-        if (DateTime_GetSystemtime(timePicker, &timer.untilTime) != GDT_VALID) {
+        if (const auto timePicker = GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME);
+            DateTime_GetSystemtime(timePicker, &timer.untilTime) != GDT_VALID) {
             GetLocalTime(&timer.untilTime);
         }
 
-        SYSTEMTIME now = {};
+        SYSTEMTIME now{};
         GetLocalTime(&now);
         timer.untilTime.wYear = now.wYear;
         timer.untilTime.wMonth = now.wMonth;
@@ -379,14 +397,13 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
         timer.untilTime.wMilliseconds = 0;
     }
 
-    const bool timerChanged =
-        timer.mode != oldTimer.mode ||
-        (timer.mode == TimerMode::Duration && timer.durationMinutes != oldTimer.durationMinutes) ||
-        (timer.mode == TimerMode::UntilTime &&
-         (timer.untilTime.wHour != oldTimer.untilTime.wHour ||
-          timer.untilTime.wMinute != oldTimer.untilTime.wMinute));
-
-    if (timerChanged || timer.mode == TimerMode::Indefinite) {
+    if (const auto timerChanged =
+            timer.mode != oldTimer.mode ||
+            (timer.mode == Duration && timer.durationMinutes != oldTimer.durationMinutes) ||
+            (timer.mode == UntilTime &&
+             (timer.untilTime.wHour != oldTimer.untilTime.wHour ||
+              timer.untilTime.wMinute != oldTimer.untilTime.wMinute));
+        timerChanged || timer.mode == Indefinite) {
         timer.startTime = {};
         timer.endTimeUtc = 0;
         timer.monotonicDeadlineMs = 0;
@@ -404,32 +421,37 @@ bool SettingsDialog::OnOkClicked(HWND dialog) {
     return true;
 }
 
-void SettingsDialog::InitializeTimerControls(HWND dialog) {
-    TimerConfig timer = m_settings->GetTimerConfig();
+void SettingsDialog::InitializeTimerControls(HWND dialog) const {
+    using enum TimerMode;
+
+    auto timer = m_settings->GetTimerConfig();
 
     int radioButton = IDC_TIMER_INDEFINITE;
     switch (timer.mode) {
-        case TimerMode::Indefinite:
+        case Indefinite:
             radioButton = IDC_TIMER_INDEFINITE;
             break;
-        case TimerMode::Duration:
+
+        case Duration:
             radioButton = IDC_TIMER_DURATION;
             SetDlgItemInt(dialog, IDC_TIMER_DURATION_EDIT, timer.durationMinutes, FALSE);
             break;
-        case TimerMode::UntilTime: {
+
+        case UntilTime:
             radioButton = IDC_TIMER_UNTIL;
-            HWND timePicker = GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME);
-            DateTime_SetSystemtime(timePicker, GDT_VALID, &timer.untilTime);
+            DateTime_SetSystemtime(GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME), GDT_VALID, &timer.untilTime);
             break;
-        }
+
+        default:
+            break;
     }
     CheckRadioButton(dialog, IDC_TIMER_INDEFINITE, IDC_TIMER_UNTIL, radioButton);
     UpdateTimerControlsState(dialog);
 }
 
-void SettingsDialog::UpdateKeyPressControlsState(HWND dialog) {
-    HWND combo = GetDlgItem(dialog, IDC_KEY_COMBO);
-    const int selection = static_cast<int>(SendMessageW(combo, CB_GETCURSEL, 0, 0));
+void SettingsDialog::UpdateKeyPressControlsState(HWND dialog) const {
+    const auto combo = GetDlgItem(dialog, IDC_KEY_COMBO);
+    const auto selection = static_cast<int>(SendMessageW(combo, CB_GETCURSEL, 0, 0));
     WORD virtualKey = 0;
     if (selection >= 0) {
         virtualKey = static_cast<WORD>(SendMessageW(combo, CB_GETITEMDATA, selection, 0));
@@ -440,12 +462,12 @@ void SettingsDialog::UpdateKeyPressControlsState(HWND dialog) {
     EnableWindow(GetDlgItem(dialog, IDC_PERIOD_SECONDS_LABEL), enabled);
 }
 
-void SettingsDialog::UpdatePowerControlsState(HWND dialog) {
+void SettingsDialog::UpdatePowerControlsState(HWND dialog) const {
     const BOOL keepDisplay = IsDlgButtonChecked(dialog, IDC_KEEPDISPLAY_CHECK) == BST_CHECKED;
     EnableWindow(GetDlgItem(dialog, IDC_ALLOW_DISPLAY_BATTERY), keepDisplay);
 }
 
-void SettingsDialog::UpdateTimerControlsState(HWND dialog) {
+void SettingsDialog::UpdateTimerControlsState(HWND dialog) const {
     const BOOL duration = IsDlgButtonChecked(dialog, IDC_TIMER_DURATION) == BST_CHECKED;
     const BOOL until = IsDlgButtonChecked(dialog, IDC_TIMER_UNTIL) == BST_CHECKED;
 
@@ -456,20 +478,22 @@ void SettingsDialog::UpdateTimerControlsState(HWND dialog) {
     UpdateUntilHint(dialog);
 }
 
-void SettingsDialog::UpdateUntilHint(HWND dialog) {
+void SettingsDialog::UpdateUntilHint(HWND dialog) const {
+    using enum TimerMode;
+
     if (IsDlgButtonChecked(dialog, IDC_TIMER_UNTIL) != BST_CHECKED) {
         SetDlgItemTextW(dialog, IDC_TIMER_UNTIL_HINT, L"");
         return;
     }
 
-    SYSTEMTIME selected = {};
+    SYSTEMTIME selected{};
     if (DateTime_GetSystemtime(GetDlgItem(dialog, IDC_TIMER_UNTIL_TIME), &selected) != GDT_VALID) {
         SetDlgItemTextW(dialog, IDC_TIMER_UNTIL_HINT, L"");
         return;
     }
 
     TimerConfig timer;
-    timer.mode = TimerMode::UntilTime;
+    timer.mode = UntilTime;
     timer.untilTime = selected;
     SetDlgItemTextW(dialog, IDC_TIMER_UNTIL_HINT,
                     timer.IsUntilNextDay()
@@ -477,7 +501,7 @@ void SettingsDialog::UpdateUntilHint(HWND dialog) {
                         : L"");
 }
 
-void SettingsDialog::OnTimerModeChanged(HWND dialog) {
+void SettingsDialog::OnTimerModeChanged(HWND dialog) const {
     UpdateTimerControlsState(dialog);
 }
 

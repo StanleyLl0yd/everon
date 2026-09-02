@@ -14,20 +14,20 @@ public:
 private:
     static INT_PTR CALLBACK DialogProc(HWND dialog, UINT message,
                                       WPARAM wParam, LPARAM lParam);
-    void OnInitDialog(HWND dialog);
-    bool OnOkClicked(HWND dialog);
-    void OnLanguageChanged(HWND dialog);
-    void OnKeyPressChanged(HWND dialog);
-    void OnTimerModeChanged(HWND dialog);
-    void PopulateLanguageComboBox(HWND dialog);
-    void PopulateKeyComboBox(HWND comboBox, WORD selectedKey);
-    void PopulateHotkeyComboBox(HWND dialog);
-    void InitializeTimerControls(HWND dialog);
-    void UpdateKeyPressControlsState(HWND dialog);
-    void UpdatePowerControlsState(HWND dialog);
-    void UpdateTimerControlsState(HWND dialog);
-    void UpdateUntilHint(HWND dialog);
-    void UpdateDialogText(HWND dialog);
+    void OnInitDialog(HWND dialog) const;
+    bool OnOkClicked(HWND dialog) const;
+    void OnLanguageChanged(HWND dialog) const;
+    void OnKeyPressChanged(HWND dialog) const;
+    void OnTimerModeChanged(HWND dialog) const;
+    void PopulateLanguageComboBox(HWND dialog) const;
+    void PopulateKeyComboBox(HWND comboBox, WORD selectedKey) const;
+    void PopulateHotkeyComboBox(HWND dialog) const;
+    void InitializeTimerControls(HWND dialog) const;
+    void UpdateKeyPressControlsState(HWND dialog) const;
+    void UpdatePowerControlsState(HWND dialog) const;
+    void UpdateTimerControlsState(HWND dialog) const;
+    void UpdateUntilHint(HWND dialog) const;
+    void UpdateDialogText(HWND dialog) const;
 
     HINSTANCE m_instance = nullptr;
     Settings* m_settings = nullptr;

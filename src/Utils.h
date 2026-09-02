@@ -2,15 +2,26 @@
 
 #include <windows.h>
 #include <shellapi.h>
+#include <format>
 #include <string>
+#include <utility>
 
 namespace Everon::Utils {
 
+template <typename... Args>
+void DebugLog(std::wformat_string<Args...> format, Args&&... args) noexcept {
 #ifdef _DEBUG
-void DebugLog(const wchar_t* format, ...);
+    try {
+        const auto message = std::format(format, std::forward<Args>(args)...);
+        OutputDebugStringW(message.c_str());
+    } catch (...) {
+        OutputDebugStringW(L"[Everon] Debug logging failed.\n");
+    }
 #else
-inline void DebugLog(const wchar_t*, ...) {}
+    (void)format;
+    ((void)args, ...);
 #endif
+}
 
 bool CheckWinApiBool(BOOL result, const wchar_t* apiName);
 bool CheckWinApiStatus(LONG status, const wchar_t* apiName);
