@@ -7,6 +7,16 @@ All notable changes to Everon are documented in this file.
 
 ---
 
+## 2.8.1 — 2026-09-02
+
+### Changed
+
+- Replaced the Everon application icon with a new modern high-contrast design optimized for both large and small Windows icon sizes.
+
+### Maintenance
+
+- Refreshed the native Windows icon resource without changing application behavior.
+
 ## 2.8.0 — 2026-08-27
 
 ### Added
