@@ -22,7 +22,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/icon-staging/part* > "$RUNNER_TEMP/everon.ico.b64"
+          cat \
+            .github/icon-staging/part00 \
+            .github/icon-staging/correct-part01 \
+            .github/icon-staging/part02 \
+            .github/icon-staging/p03_00 \
+            .github/icon-staging/p03_01 \
+            .github/icon-staging/p03_02 \
+            .github/icon-staging/p03_03a \
+            .github/icon-staging/p03_03b1 \
+            .github/icon-staging/p03_03b2a \
+            .github/icon-staging/p03_03b2b \
+            .github/icon-staging/p03_03c \
+            .github/icon-staging/p03_04 \
+            .github/icon-staging/p03_05 \
+            .github/icon-staging/part04 \
+            .github/icon-staging/part05 \
+            > "$RUNNER_TEMP/everon.ico.b64"
           base64 --decode "$RUNNER_TEMP/everon.ico.b64" > src/Everon.ico
           echo "c92a8f961d086f4d1cf2a0f7dbbf44c5a0896aa23657d3eb64d2074efe7de003  src/Everon.ico" | sha256sum --check --strict
           rm -rf .github/icon-staging
