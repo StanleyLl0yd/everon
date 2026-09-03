@@ -1,0 +1,238 @@
+name: Apply Everon 2.8.2 About links
+
+on:
+  push:
+    branches:
+      - release-2.8.2-about-links
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: release-2.8.2-about-links
+          fetch-depth: 0
+
+      - name: Apply release changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{path}: expected exactly one match for {old!r}, got {text.count(old)}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8', newline='\n')
+
+          replace_once('src/Version.h', '#define VER_PATCH 1', '#define VER_PATCH 2')
+
+          replace_once(
+              'src/Localization.h',
+              '    AboutLicense,\n\n    ErrorInvalidPeriod,',
+              '    AboutLicense,\n    AboutWebsite,\n    AboutPrivacy,\n\n    ErrorInvalidPeriod,'
+          )
+
+          license_row = '    { L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0" },'
+          link_rows = license_row + '\n' + \
+              '    { L"App website", L"Сайт приложения", L"Site de l\'app", L"App-Website", L"Sito dell\'app", L"Sitio de la app" },\n' + \
+              '    { L"Privacy Policy", L"Политика конфиденциальности", L"Politique de confidentialité", L"Datenschutzerklärung", L"Informativa sulla privacy", L"Política de privacidad" },'
+          replace_once('src/Localization.cpp', license_row, link_rows)
+
+          replace_once(
+              'src/resource.h',
+              '#define IDC_QUICK_UNTIL_HINT            1034\n',
+              '#define IDC_QUICK_UNTIL_HINT            1034\n#define IDC_ABOUT_PRIVACY                1035\n'
+          )
+
+          replace_once('src/app.rc', 'IDD_ABOUT DIALOGEX 0, 0, 250, 132', 'IDD_ABOUT DIALOGEX 0, 0, 250, 150')
+          replace_once(
+              'src/app.rc',
+              '    CONTROL         "", IDC_ABOUT_LINK, "SysLink", WS_TABSTOP, 56, 82, 178, 14\n    DEFPUSHBUTTON   "OK", IDOK, 100, 108, 50, 16',
+              '    CONTROL         "", IDC_ABOUT_LINK, "SysLink", WS_TABSTOP, 56, 82, 178, 14\n    CONTROL         "", IDC_ABOUT_PRIVACY, "SysLink", WS_TABSTOP, 56, 100, 178, 14\n    DEFPUSHBUTTON   "OK", IDOK, 100, 126, 50, 16'
+          )
+
+          about = r'''#include "AboutDialog.h"
+          #include "Localization.h"
+          #include "resource.h"
+
+          #include <commctrl.h>
+          #include <shellapi.h>
+
+          #include <bit>
+          #include <string>
+
+          namespace Everon {
+
+          namespace {
+
+          constexpr wchar_t kWebsiteUrl[] = L"https://stanleyll0yd.github.io/apps/everon/";
+          constexpr wchar_t kPrivacyUrl[] = L"https://stanleyll0yd.github.io/apps/everon/privacy/";
+          constexpr wchar_t kWebsiteDisplay[] = L"stanleyll0yd.github.io";
+
+          std::wstring MakeLinkText(const wchar_t* url,
+                                    const wchar_t* label,
+                                    const wchar_t* detail = nullptr) {
+              std::wstring text = L"<a href=\"";
+              text += url;
+              text += L"\">";
+              text += label;
+              if (detail) {
+                  text += L" - ";
+                  text += detail;
+              }
+              text += L"</a>";
+              return text;
+          }
+
+          void OpenUrl(HWND dialog, const wchar_t* url) {
+              using enum StringID;
+
+              const HINSTANCE result = ShellExecuteW(dialog, L"open", url, nullptr, nullptr, SW_SHOWNORMAL);
+              if (std::bit_cast<INT_PTR>(result) <= 32) {
+                  const auto& loc = Localization::Instance();
+                  MessageBoxW(dialog, url, loc.GetString(AboutTitle), MB_OK | MB_ICONINFORMATION);
+              }
+          }
+
+          INT_PTR CALLBACK AboutDialogProc(HWND dialog, UINT message, WPARAM wParam, LPARAM lParam) {
+              using enum StringID;
+
+              const auto& loc = Localization::Instance();
+
+              switch (message) {
+                  case WM_INITDIALOG: {
+                      SetWindowTextW(dialog, loc.GetString(AboutTitle));
+                      SetDlgItemTextW(dialog, IDC_ABOUT_VERSION, loc.GetString(AboutVersion));
+                      SetDlgItemTextW(dialog, IDC_ABOUT_TAGLINE, loc.GetString(AboutTagline));
+                      SetDlgItemTextW(dialog, IDC_ABOUT_AUTHOR, L"Stanley Lloyd");
+                      SetDlgItemTextW(dialog, IDC_ABOUT_LICENSE, loc.GetString(AboutLicense));
+
+                      const std::wstring website =
+                          MakeLinkText(kWebsiteUrl, loc.GetString(AboutWebsite), kWebsiteDisplay);
+                      const std::wstring privacy = MakeLinkText(kPrivacyUrl, loc.GetString(AboutPrivacy));
+                      SetDlgItemTextW(dialog, IDC_ABOUT_LINK, website.c_str());
+                      SetDlgItemTextW(dialog, IDC_ABOUT_PRIVACY, privacy.c_str());
+                      SetDlgItemTextW(dialog, IDOK, loc.GetString(ButtonOK));
+                      return TRUE;
+                  }
+
+                  case WM_NOTIFY:
+                      if (const auto* header = std::bit_cast<const NMHDR*>(lParam);
+                          header &&
+                          (header->idFrom == IDC_ABOUT_LINK || header->idFrom == IDC_ABOUT_PRIVACY) &&
+                          (header->code == NM_CLICK || header->code == NM_RETURN)) {
+                          const auto* link = std::bit_cast<const NMLINK*>(lParam);
+                          const wchar_t* fallback =
+                              header->idFrom == IDC_ABOUT_PRIVACY ? kPrivacyUrl : kWebsiteUrl;
+                          const wchar_t* url = link->item.szUrl[0] ? link->item.szUrl : fallback;
+                          OpenUrl(dialog, url);
+                          return TRUE;
+                      }
+                      break;
+
+                  case WM_COMMAND:
+                      if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL) {
+                          EndDialog(dialog, LOWORD(wParam));
+                          return TRUE;
+                      }
+                      break;
+
+                  default:
+                      break;
+              }
+
+              return FALSE;
+          }
+
+          }
+
+          void ShowAboutDialog(HINSTANCE instance, HWND parent) {
+              using enum StringID;
+
+              const INT_PTR result = DialogBoxParamW(instance,
+                                                     MAKEINTRESOURCEW(IDD_ABOUT),
+                                                     parent,
+                                                     AboutDialogProc,
+                                                     0);
+              if (result == -1) {
+                  const auto& loc = Localization::Instance();
+                  std::wstring message = loc.GetString(AboutVersion);
+                  message += L"\n";
+                  message += loc.GetString(AboutTagline);
+                  message += L"\n\nStanley Lloyd\n";
+                  message += loc.GetString(AboutLicense);
+                  message += L"\n\n";
+                  message += loc.GetString(AboutWebsite);
+                  message += L": ";
+                  message += kWebsiteUrl;
+                  message += L"\n";
+                  message += loc.GetString(AboutPrivacy);
+                  message += L": ";
+                  message += kPrivacyUrl;
+
+                  MessageBoxW(parent, message.c_str(), loc.GetString(AboutTitle),
+                              MB_OK | MB_ICONINFORMATION);
+              }
+          }
+
+          }
+          '''
+          lines = about.splitlines()
+          nonempty = [line for line in lines if line.strip()]
+          indent = min(len(line) - len(line.lstrip()) for line in nonempty)
+          about = '\n'.join(line[indent:] if line.strip() else '' for line in lines).lstrip() + '\n'
+          Path('src/AboutDialog.cpp').write_text(about, encoding='utf-8', newline='\n')
+
+          replace_once('README.md', '**Source version:** 2.8.1', '**Source version:** 2.8.2')
+          replace_once(
+              'README.md',
+              '- **About** dialog with the installed version, purpose, author, license, and a clickable GitHub repository link.',
+              '- **About** dialog with the installed version, purpose, author, license, application website, and Privacy Policy links.'
+          )
+          replace_once('README.ru.md', '**Версия исходного кода:** 2.8.1', '**Версия исходного кода:** 2.8.2')
+          replace_once(
+              'README.ru.md',
+              '- Окно **«О программе»** с установленной версией, назначением приложения, автором, лицензией и кликабельной ссылкой на репозиторий GitHub.',
+              '- Окно **«О программе»** с установленной версией, назначением приложения, автором, лицензией, ссылками на сайт приложения и политику конфиденциальности.'
+          )
+
+          en_section = '''## 2.8.2 — 2026-09-03
+
+          ### Changed
+
+          - Replaced the GitHub repository link in the About dialog with the Everon application website.
+          - Added a localized Privacy Policy link to the About dialog.
+          - Regular About-dialog navigation now stays on the public Everon website instead of sending users to GitHub.
+
+          '''
+          ru_section = '''## 2.8.2 — 2026-09-03
+
+          ### Изменено
+
+          - Ссылка на GitHub-репозиторий в окне «О программе» заменена на сайт приложения Everon.
+          - В окно «О программе» добавлена локализованная ссылка на политику конфиденциальности.
+          - Обычная навигация из окна «О программе» теперь ведёт только на публичный сайт Everon, без перехода пользователя на GitHub.
+
+          '''
+          en_section = '\n'.join(line.strip() if line.startswith('          ') else line for line in en_section.splitlines()) + '\n'
+          ru_section = '\n'.join(line.strip() if line.startswith('          ') else line for line in ru_section.splitlines()) + '\n'
+          replace_once('CHANGELOG.md', '---\n\n', '---\n\n' + en_section)
+          replace_once('CHANGELOG.ru.md', '---\n\n', '---\n\n' + ru_section)
+          PY
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          git config user.name "Stanley Lloyd"
+          git config user.email "131160519+StanleyLl0yd@users.noreply.github.com"
+          git rm .github/workflows/apply-about-2.8.2.yml
+          git add src/AboutDialog.cpp src/Localization.cpp src/Localization.h src/resource.h src/app.rc src/Version.h README.md README.ru.md CHANGELOG.md CHANGELOG.ru.md
+          git commit -m "Update About links for Everon 2.8.2"
+          git push origin HEAD:release-2.8.2-about-links
