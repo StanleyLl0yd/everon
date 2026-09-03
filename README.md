@@ -8,7 +8,7 @@
 
 A lightweight native Windows tray utility that prevents automatic system sleep while it is enabled. Everon runs without a main window and is controlled from the system tray.
 
-**Source version:** 2.8.1 · **Platform:** Windows x64 · **Language:** C++20
+**Source version:** 2.8.2 · **Platform:** Windows x64 · **Language:** C++20
 
 [GitHub Releases](https://github.com/StanleyLl0yd/everon/releases)
 
@@ -37,7 +37,7 @@ A lightweight native Windows tray utility that prevents automatic system sleep w
 - Single-instance operation: starting Everon again opens **Settings** in the running instance.
 - Restores its tray icon after Windows Explorer restarts.
 - Stores settings for the current user under `HKCU\Software\Everon`.
-- **About** dialog with the installed version, purpose, author, license, and a clickable GitHub repository link.
+- **About** dialog with the installed version, purpose, author, license, application website, and Privacy Policy links.
 
 ## System behavior
 

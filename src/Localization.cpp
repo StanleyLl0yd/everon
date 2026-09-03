@@ -71,6 +71,8 @@ constexpr std::array<std::array<const wchar_t*, kLangCount>, kStrCount> kStrings
     { L"Everon v" VER_VERSION_STR_W, L"Everon v" VER_VERSION_STR_W, L"Everon v" VER_VERSION_STR_W, L"Everon v" VER_VERSION_STR_W, L"Everon v" VER_VERSION_STR_W, L"Everon v" VER_VERSION_STR_W },
     { L"Keep your PC awake", L"Не дать компьютеру уснуть", L"Gardez votre PC éveillé", L"Halten Sie Ihren PC wach", L"Mantieni il PC sveglio", L"Mantén tu PC despierto" },
     { L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0", L"PolyForm Noncommercial 1.0.0" },
+    { L"App website", L"Сайт приложения", L"Site de l'app", L"App-Website", L"Sito dell'app", L"Sitio de la app" },
+    { L"Privacy Policy", L"Политика конфиденциальности", L"Politique de confidentialité", L"Datenschutzerklärung", L"Informativa sulla privacy", L"Política de privacidad" },
 
     { L"Period must be between 1 and 86400 seconds.\n\n1 second = minimum\n86400 seconds = 24 hours (maximum)", L"Период должен быть от 1 до 86400 секунд.\n\n1 секунда = минимум\n86400 секунд = 24 часа (максимум)", L"La période doit être entre 1 et 86400 secondes.\n\n1 seconde = minimum\n86400 secondes = 24 heures (maximum)", L"Periode muss zwischen 1 und 86400 Sekunden liegen.\n\n1 Sekunde = Minimum\n86400 Sekunden = 24 Stunden (Maximum)", L"Il periodo deve essere tra 1 e 86400 secondi.\n\n1 secondo = minimo\n86400 secondi = 24 ore (massimo)", L"El período debe estar entre 1 y 86400 segundos.\n\n1 segundo = mínimo\n86400 segundos = 24 horas (máximo)" },
     { L"Invalid Period", L"Неверный период", L"Période invalide", L"Ungültige Periode", L"Periodo non valido", L"Período inválido" },

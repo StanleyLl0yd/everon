@@ -38,6 +38,7 @@
 #define IDC_QUICK_UNTIL_LABEL           1032
 #define IDC_QUICK_UNTIL_TIME            1033
 #define IDC_QUICK_UNTIL_HINT            1034
+#define IDC_ABOUT_PRIVACY                1035
 #define IDM_TOGGLE                      40001
 #define IDM_SETTINGS                    40002
 #define IDM_ABOUT                       40003
