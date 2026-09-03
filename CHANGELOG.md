@@ -7,6 +7,14 @@ All notable changes to Everon are documented in this file.
 
 ---
 
+## 2.8.2 — 2026-09-03
+
+### Changed
+
+- Replaced the GitHub repository link in the About dialog with the Everon application website.
+- Added a localized Privacy Policy link to the About dialog.
+- Regular About-dialog navigation now stays on the public Everon website instead of sending users to GitHub.
+
 ## 2.8.1 — 2026-09-02
 
 ### Changed

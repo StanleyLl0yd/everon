@@ -2,7 +2,7 @@
 
 #define VER_MAJOR 2
 #define VER_MINOR 8
-#define VER_PATCH 1
+#define VER_PATCH 2
 #define VER_BUILD 0
 
 #define EVERON_STRINGIZE_INNER(value) #value

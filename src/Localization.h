@@ -63,6 +63,8 @@ enum class StringID : unsigned short {
     AboutVersion,
     AboutTagline,
     AboutLicense,
+    AboutWebsite,
+    AboutPrivacy,
 
     ErrorInvalidPeriod,
     ErrorInvalidPeriodTitle,
