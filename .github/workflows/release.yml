@@ -203,6 +203,10 @@ jobs:
           archs=$(lipo -archs "$binary")
           [[ " $archs " == *" arm64 "* ]]
           [[ " $archs " == *" x86_64 "* ]]
+          plutil -lint "$app/Contents/Info.plist"
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" == "Everon" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" == "io.github.stanleyll0yd.everon" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" == "2.9.0" ]]
           if codesign --verify "$app" >/dev/null 2>&1; then
             echo "macOS bundle must remain unsigned until Developer ID signing is configured" >&2
             exit 1
