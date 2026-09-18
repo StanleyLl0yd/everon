@@ -53,6 +53,9 @@ public static class EveronCaptureNative {
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
 
+    [DllImport("user32.dll")]
+    public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+
     public static IntPtr[] AllWindowsForProcess(uint processId) {
         var result = new List<IntPtr>();
         EnumWindows((hWnd, lParam) => {
@@ -211,8 +214,18 @@ try {
     Start-Sleep -Milliseconds 500
     Capture-Window $settings (Join-Path $out "01-settings.png")
 
-    [EveronCaptureNative]::PostMessage($settings, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-    Start-Sleep -Seconds 1
+    # Close the modal through its actual Cancel command so DialogBoxParam ends.
+    [EveronCaptureNative]::PostMessage($settings, 0x0111, [IntPtr]2, [IntPtr]::Zero) | Out-Null
+    $closeDeadline = (Get-Date).AddSeconds(10)
+    do {
+        $openDialogs = @([EveronCaptureNative]::VisibleWindowsForProcess([uint32]$process.Id) |
+            Where-Object { [EveronCaptureNative]::ClassName($_) -eq "#32770" })
+        if ($openDialogs.Count -eq 0) { break }
+        Start-Sleep -Milliseconds 200
+    } while ((Get-Date) -lt $closeDeadline)
+    if ($openDialogs.Count -ne 0) {
+        throw "Settings dialog did not close through IDCANCEL"
+    }
 
     [EveronCaptureNative]::SetCursorPos(640, 480) | Out-Null
     [EveronCaptureNative]::PostMessage($hidden, 0x8001, [IntPtr]::Zero, [IntPtr]0x0205) | Out-Null
@@ -220,17 +233,25 @@ try {
     Start-Sleep -Milliseconds 400
     Capture-Window $menu (Join-Path $out "02-tray-menu.png")
 
-    Send-Key 0x28
-    Send-Key 0x28
-    Send-Key 0x28
-    Send-Key 0x28
-    Send-Key 0x0D
+    # Select the real About row from the live popup menu by its measured bounds.
+    $menuRect = New-Object EveronCaptureNative+RECT
+    if (-not [EveronCaptureNative]::GetWindowRect($menu, [ref]$menuRect)) {
+        throw "Unable to measure tray menu"
+    }
+    $menuWidth = $menuRect.Right - $menuRect.Left
+    $menuHeight = $menuRect.Bottom - $menuRect.Top
+    $aboutX = $menuRect.Left + [Math]::Max(20, [int]($menuWidth * 0.50))
+    $aboutY = $menuRect.Top + [Math]::Max(20, [int]($menuHeight * 0.73))
+    [EveronCaptureNative]::SetCursorPos($aboutX, $aboutY) | Out-Null
+    Start-Sleep -Milliseconds 150
+    [EveronCaptureNative]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
+    [EveronCaptureNative]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
 
     $about = Wait-ProcessWindow ([uint32]$process.Id) "#32770"
     [EveronCaptureNative]::SetForegroundWindow($about) | Out-Null
     Start-Sleep -Milliseconds 400
     Capture-Window $about (Join-Path $out "03-about.png")
-    [EveronCaptureNative]::PostMessage($about, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+    [EveronCaptureNative]::PostMessage($about, 0x0111, [IntPtr]2, [IntPtr]::Zero) | Out-Null
 
     $expected = @("01-settings.png", "02-tray-menu.png", "03-about.png")
     $actual = @(Get-ChildItem -File $out -Filter "*.png" | Sort-Object Name | ForEach-Object Name)
