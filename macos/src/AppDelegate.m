@@ -150,7 +150,10 @@ static NSString *const EveronPrivacyURL = @"https://stanleyll0yd.github.io/apps/
 - (void)updateStatus {
     NSString *status = [Localization string:self.enabled ? @"status_enabled" : @"status_disabled"];
     if (self.enabled && self.timerEnd) {
-        NSTimeInterval remaining = [self.timerEnd timeIntervalSinceNow];\n        if (remaining < 0) {\n            remaining = 0;\n        }
+        NSTimeInterval remaining = [self.timerEnd timeIntervalSinceNow];
+        if (remaining < 0) {
+            remaining = 0;
+        }
         NSInteger minutes = (NSInteger)ceil(remaining / 60.0);
         status = [NSString stringWithFormat:[Localization string:@"status_remaining"], status, (long)minutes];
     }
@@ -314,7 +317,11 @@ static NSString *const EveronPrivacyURL = @"https://stanleyll0yd.github.io/apps/
     }
 
     NSTimeInterval interval = [NSUserDefaults.standardUserDefaults doubleForKey:@"KeyPressInterval"];
-    if (interval < 1) {\n        interval = 1;\n    } else if (interval > 86400) {\n        interval = 86400;\n    }
+    if (interval < 1) {
+        interval = 1;
+    } else if (interval > 86400) {
+        interval = 86400;
+    }
     self.keyPressTimer = [NSTimer scheduledTimerWithTimeInterval:interval
                                                          target:self
                                                        selector:@selector(sendSyntheticKey:)
@@ -444,14 +451,18 @@ static NSString *const EveronPrivacyURL = @"https://stanleyll0yd.github.io/apps/
     SMAppService *service = SMAppService.mainAppService;
     BOOL success = enabled ? [service registerAndReturnError:&error] : [service unregisterAndReturnError:&error];
     if (!success) {
-        NSString *message = error.localizedDescription;\n        [self showError:message ? message : [Localization string:@"launch_error"]];
+        NSString *message = error.localizedDescription;
+        [self showError:message ? message : [Localization string:@"launch_error"]];
     }
     return success;
 }
 
 - (void)showAbout:(id)sender {
     (void)sender;
-    NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];\n    if (!version) {\n        version = @"";\n    }
+    NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    if (!version) {
+        version = @"";
+    }
     NSAlert *alert = [NSAlert new];
     alert.messageText = [NSString stringWithFormat:@"Everon %@", version];
     alert.informativeText = [NSString stringWithFormat:@"%@\n\nStanley Lloyd\nPolyForm Noncommercial 1.0.0",
