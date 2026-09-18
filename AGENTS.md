@@ -486,3 +486,6 @@ The final goal is a codebase containing only the complexity required to implemen
 - Do not overwrite, recompress, optimize in place, or otherwise rewrite the canonical PNG. Keep the uploaded source unchanged.
 - Platform-required derivatives may be generated only as raster derivatives of that PNG. Resizing and required raster packaging/container formats such as PNG size variants, ICO, or ICNS are allowed, but the visible artwork must remain unchanged: no cropping, padding, color changes, removed details, or other design edits unless explicitly requested.
 - If an older icon in another format is currently canonical, keep it until the project owner explicitly supplies a replacement PNG as the new app icon. Once supplied, that PNG becomes the canonical source and the asset pipeline should derive required icons from it rather than converting it to a vector source.
+- The current canonical Everon app icon is `assets/Everon.png`, SHA-256 `0614908b53f8d4c7b2990857d82535580f7b8edabfd473c50e26e78eb8018fdd`.
+- Windows `src/Everon.ico` and macOS `macos/resources/Everon.icns` must remain raster derivatives of that exact PNG and must not be edited independently.
+- Windows and macOS must use the same canonical artwork for the Everon application icon; the macOS menu-bar item must also use that artwork rather than an unrelated system glyph.
