@@ -1,0 +1,38 @@
+name: Everon v2.8.2 screenshots (temporary)
+
+on:
+  push:
+    branches:
+      - tooling/screenshots-v2.8.2-temp
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: everon-v2.8.2-screenshots-temp
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capture published v2.8.2 UI
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Capture published Everon v2.8.2
+        shell: pwsh
+        run: ./.github/scripts/capture-everon-v2.8.2-temp.ps1
+
+      - name: Upload screenshot artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Everon-v2.8.2-screenshots
+          path: ${{ runner.temp }}/everon-capture/screenshots/
+          if-no-files-found: warn
+          retention-days: 14
