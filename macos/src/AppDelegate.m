@@ -160,9 +160,9 @@ static NSString *const EveronPrivacyURL = @"https://stanleyll0yd.github.io/apps/
     self.statusMenuItem.title = status;
     self.statusItem.button.toolTip = status;
 
-    NSString *symbol = self.enabled ? @"sun.max.fill" : @"moon.zzz";
-    NSImage *image = [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:@"Everon"];
-    image.template = YES;
+    NSImage *image = [NSApp.applicationIconImage copy];
+    image.size = NSMakeSize(18.0, 18.0);
+    image.template = NO;
     self.statusItem.button.image = image;
 }
 
