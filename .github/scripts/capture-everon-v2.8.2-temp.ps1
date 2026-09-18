@@ -205,8 +205,7 @@ try {
     }
     $hidden = [IntPtr]$hidden
 
-    $second = Start-Process -FilePath $exe -PassThru
-    $second.WaitForExit(10000) | Out-Null
+    [EveronCaptureNative]::PostMessage($hidden, 0x8002, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
     $settings = Wait-ProcessWindow ([uint32]$process.Id) "#32770"
     [EveronCaptureNative]::SetForegroundWindow($settings) | Out-Null
     Start-Sleep -Milliseconds 500
