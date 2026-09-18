@@ -38,6 +38,9 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
 
+      - name: Verify icon assets
+        run: python scripts/verify-icon-assets.py
+
       - name: Resolve release
         id: resolve
         shell: pwsh
@@ -206,6 +209,8 @@ jobs:
           plutil -lint "$app/Contents/Info.plist"
           [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" == "Everon" ]]
           [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" == "io.github.stanleyll0yd.everon" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist")" == "Everon.icns" ]]
+          [[ -f "$app/Contents/Resources/Everon.icns" ]]
           major=$(awk '$2 == "VER_MAJOR" {print $3}' src/Version.h)
           minor=$(awk '$2 == "VER_MINOR" {print $3}' src/Version.h)
           patch=$(awk '$2 == "VER_PATCH" {print $3}' src/Version.h)
