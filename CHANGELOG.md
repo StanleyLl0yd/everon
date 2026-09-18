@@ -7,6 +7,22 @@ All notable changes to Everon are documented in this file.
 
 ---
 
+## 2.9.0 — 2026-09-18
+
+### Added
+
+- Added a native macOS menu-bar build using Objective-C, AppKit, and IOKit with no third-party libraries.
+- Added Universal 2 support for Apple Silicon (`arm64`) and Intel (`x86_64`).
+- Added macOS keep-awake and optional display-awake behavior through IOKit power assertions.
+- Added quick/custom/until-time timers, optional F15/F16/F17 synthetic key presses, global hotkey presets, notifications, start at login, persistent settings, six interface languages, and About website/privacy navigation on macOS.
+- Added macOS CI packaging as `Everon-macOS-universal.zip` with SHA-256 verification.
+
+### Changed
+
+- Everon is now a Windows and macOS application from the same repository and version line.
+- The release pipeline publishes Windows and macOS artifacts from the same verified commit.
+- macOS builds are intentionally unsigned and not notarized until Developer ID signing is configured.
+
 ## 2.8.2 — 2026-09-03
 
 ### Changed
