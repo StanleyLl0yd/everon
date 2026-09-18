@@ -53,16 +53,26 @@ public static class EveronCaptureNative {
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, UIntPtr extraInfo);
 
-    public static IntPtr[] VisibleWindowsForProcess(uint processId) {
+    public static IntPtr[] AllWindowsForProcess(uint processId) {
         var result = new List<IntPtr>();
         EnumWindows((hWnd, lParam) => {
             uint pid;
             GetWindowThreadProcessId(hWnd, out pid);
-            if (pid == processId && IsWindowVisible(hWnd)) {
+            if (pid == processId) {
                 result.Add(hWnd);
             }
             return true;
         }, IntPtr.Zero);
+        return result.ToArray();
+    }
+
+    public static IntPtr[] VisibleWindowsForProcess(uint processId) {
+        var result = new List<IntPtr>();
+        foreach (var hWnd in AllWindowsForProcess(processId)) {
+            if (IsWindowVisible(hWnd)) {
+                result.Add(hWnd);
+            }
+        }
         return result.ToArray();
     }
 
@@ -183,10 +193,17 @@ try {
     if ($process.HasExited) {
         throw "Everon exited before capture with code $($process.ExitCode)"
     }
-    $hidden = [EveronCaptureNative]::FindWindow("EveronMainWindow", $null)
-    if ($hidden -eq [IntPtr]::Zero) {
-        throw "Everon hidden main window was not created"
+    $allWindows = @([EveronCaptureNative]::AllWindowsForProcess([uint32]$process.Id))
+    foreach ($candidate in $allWindows) {
+        Write-Host "Everon HWND=$candidate class=$([EveronCaptureNative]::ClassName($candidate)) visible=$([EveronCaptureNative]::IsWindowVisible($candidate))"
     }
+    $hidden = $allWindows |
+        Where-Object { [EveronCaptureNative]::ClassName($_) -eq "EveronMainWindow" } |
+        Select-Object -First 1
+    if (-not $hidden) {
+        throw "Everon hidden main window was not found by PID enumeration"
+    }
+    $hidden = [IntPtr]$hidden
 
     $second = Start-Process -FilePath $exe -PassThru
     $second.WaitForExit(10000) | Out-Null
