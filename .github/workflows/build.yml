@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  windows:
     name: Windows x64 Release
     runs-on: windows-2025
 
@@ -93,3 +93,47 @@ jobs:
             Start-Sleep -Seconds 10
           } while ((Get-Date) -lt $deadline)
           throw "Timed out waiting for SonarCloud quality gate"
+
+  macos:
+    name: macOS Universal Release
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure
+        run: cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release -DEVERON_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build-macos --config Release --parallel
+
+      - name: Verify Universal 2 and unsigned bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="build-macos/macos/Everon.app"
+          binary="$app/Contents/MacOS/Everon"
+          archs=$(lipo -archs "$binary")
+          [[ " $archs " == *" arm64 "* ]]
+          [[ " $archs " == *" x86_64 "* ]]
+          if codesign --verify "$app" >/dev/null 2>&1; then
+            echo "macOS bundle must remain unsigned until Developer ID signing is configured" >&2
+            exit 1
+          fi
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ditto -c -k --keepParent "build-macos/macos/Everon.app" "Everon-macOS-universal.zip"
+          shasum -a 256 "Everon-macOS-universal.zip" | awk '{print $1 "  Everon-macOS-universal.zip"}' > "Everon-macOS-universal.zip.sha256"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Everon-macOS-universal
+          path: |
+            Everon-macOS-universal.zip
+            Everon-macOS-universal.zip.sha256
+          if-no-files-found: error
