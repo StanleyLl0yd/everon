@@ -5,7 +5,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleExecutable</key>
-    <string>${EXECUTABLE_NAME}</string>
+    <string>Everon</string>
     <key>CFBundleIdentifier</key>
     <string>io.github.stanleyll0yd.everon</string>
     <key>CFBundleInfoDictionaryVersion</key>
