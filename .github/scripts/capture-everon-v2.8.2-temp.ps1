@@ -161,9 +161,28 @@ if ($actualHash -ne $expectedHash) {
 }
 Write-Host "Verified Everon.exe SHA-256: $actualHash"
 
+if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) {
+    Start-Process -FilePath "$env:WINDIR\explorer.exe" | Out-Null
+}
+$desktopDeadline = (Get-Date).AddSeconds(20)
+do {
+    $taskbar = [EveronCaptureNative]::FindWindow("Shell_TrayWnd", $null)
+    if ($taskbar -ne [IntPtr]::Zero) {
+        break
+    }
+    Start-Sleep -Milliseconds 500
+} while ((Get-Date) -lt $desktopDeadline)
+if ($taskbar -eq [IntPtr]::Zero) {
+    throw "Interactive Windows shell/taskbar is unavailable on this runner"
+}
+Write-Host "Windows shell taskbar detected."
+
 $process = Start-Process -FilePath $exe -PassThru
 try {
     Start-Sleep -Seconds 3
+    if ($process.HasExited) {
+        throw "Everon exited before capture with code $($process.ExitCode)"
+    }
     $hidden = [EveronCaptureNative]::FindWindow("EveronMainWindow", $null)
     if ($hidden -eq [IntPtr]::Zero) {
         throw "Everon hidden main window was not created"
