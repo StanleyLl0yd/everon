@@ -19,6 +19,7 @@ All notable changes to Everon are documented in this file.
 
 ### Changed
 
+- Windows and macOS now use the same canonical Everon raster artwork for the application icon, including the macOS menu-bar item.
 - Everon is now a Windows and macOS application from the same repository and version line.
 - The release pipeline publishes Windows and macOS artifacts from the same verified commit.
 - macOS builds are intentionally unsigned and not notarized until Developer ID signing is configured.
