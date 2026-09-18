@@ -10,7 +10,7 @@ static NSBundle *languageBundle;
 
 + (NSString *)resolvedLanguageCode:(NSString *)code {
     if ([code isEqualToString:@"system"] || code.length == 0) {
-        NSString *preferred = NSLocale.preferredLanguages.firstObject ?: @"en";
+        NSString *preferred = NSLocale.preferredLanguages.firstObject;\n        if (!preferred) {\n            preferred = @"en";\n        }
         NSString *prefix = [[preferred componentsSeparatedByString:@"-"] firstObject].lowercaseString;
         return [[self supportedLanguageCodes] containsObject:prefix] ? prefix : @"en";
     }
@@ -24,7 +24,7 @@ static NSBundle *languageBundle;
 }
 
 + (NSString *)languageCode {
-    return [NSUserDefaults.standardUserDefaults stringForKey:@"Language"] ?: @"system";
+    NSString *code = [NSUserDefaults.standardUserDefaults stringForKey:@"Language"];\n    return code ? code : @"system";
 }
 
 + (void)setLanguageCode:(NSString *)code {
