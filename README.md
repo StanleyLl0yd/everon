@@ -1,62 +1,72 @@
 # Everon
 
-[![Windows CI](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml)
+[![CI](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/StanleyLl0yd/everon/actions/workflows/build.yml)
 [![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4?logo=windows11&logoColor=white)](https://github.com/StanleyLl0yd/everon/releases)
+[![macOS Universal 2](https://img.shields.io/badge/macOS-Universal%202-000000?logo=apple&logoColor=white)](https://github.com/StanleyLl0yd/everon/releases)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue)](LICENSE)
 
 [English](README.md) · [Русский](README.ru.md)
 
-A lightweight native Windows tray utility that prevents automatic system sleep while it is enabled. Everon runs without a main window and is controlled from the system tray.
+Everon is a lightweight native keep-awake utility for Windows and macOS. It runs without a main window and is controlled from the Windows system tray or macOS menu bar.
 
-**Source version:** 2.8.2 · **Platform:** Windows x64 · **Language:** C++20
+**Source version:** 2.9.0 · **Platforms:** Windows x64, macOS Universal 2 (arm64 + x86_64) · **Languages:** C++20 / Objective-C
 
 [GitHub Releases](https://github.com/StanleyLl0yd/everon/releases)
 
 ## Features
 
-- Prevents automatic system sleep using the Windows `SetThreadExecutionState` API.
+### Common
+
+- Prevents automatic system sleep while Everon is enabled.
 - Can optionally keep the display active.
-- Battery-aware options can respect Windows Battery Saver and suppress display keep-awake while running on battery.
-- Can optionally send F15, F16, or F17 through `SendInput` at a configurable interval from **1 second to 24 hours**.
-- Three timer modes: **Indefinitely**, **For duration**, and **Until time**.
-- Quick tray timers for **15 minutes**, **30 minutes**, **1 hour**, and **2 hours**, plus native **Custom...** and **Until time...** dialogs.
-- Choosing a quick timer enables Everon immediately and replaces the current timer mode.
-- **Until time** clearly indicates when the selected time means tomorrow.
-- Duration timers use a monotonic clock while Everon is running, so changing the Windows clock does not change the active duration; a persisted UTC deadline is used to restore the timer after a restart.
-- Live tray status keeps active timer information current and the tray menu shows the current Everon state.
-- Active quick-duration presets are marked in the tray menu.
-- Power-source changes and resume events immediately refresh the active timer and keep-awake state.
-- Enable or disable Everon from the tray menu.
-- Single-click the tray icon to open **Settings**.
-- Uses a visually muted tray icon while Everon is disabled.
-- Optional configurable global hotkey to enable or disable Everon.
-- Optional start with Windows for the current user.
-- Optional notifications when Everon is enabled or disabled; timer expiration and relevant errors are also reported through notifications.
-- Retries the requested Windows power state after a transient `SetThreadExecutionState` failure and reports the problem once while retrying.
+- Three timer modes: indefinite, duration, and until time.
+- Quick timers for 15 minutes, 30 minutes, 1 hour, and 2 hours, plus custom duration and until-time dialogs.
+- Optional F15, F16, or F17 synthetic key presses at a configurable interval from 1 second to 24 hours.
+- Optional global hotkey, notifications, and start-at-login/start-with-Windows behavior.
 - Six interface languages: English, Russian, French, German, Italian, and Spanish.
-- Single-instance operation: starting Everon again opens **Settings** in the running instance.
-- Restores its tray icon after Windows Explorer restarts.
-- Stores settings for the current user under `HKCU\Software\Everon`.
-- **About** dialog with the installed version, purpose, author, license, application website, and Privacy Policy links.
+- About UI with version, author, license, application website, and Privacy Policy links.
+
+### Windows
+
+- Uses `SetThreadExecutionState` for keep-awake behavior.
+- Battery-aware options can respect Windows Battery Saver and suppress display keep-awake while running on battery.
+- Duration timers use a monotonic clock while running and a persisted UTC deadline for restart recovery.
+- Live tray status, active quick-timer indication, Explorer restart recovery, and single-instance forwarding.
+- Settings are stored under `HKCU\Software\Everon`.
+
+### macOS
+
+- Native menu-bar application built with Objective-C, AppKit, and IOKit only.
+- Uses IOKit power assertions for system and optional display keep-awake behavior.
+- Universal 2 binary for both Apple Silicon (`arm64`) and Intel (`x86_64`).
+- Settings are stored with `NSUserDefaults`.
+- Start at login uses `ServiceManagement`; notifications use `UserNotifications`.
+- Global hotkeys use the built-in macOS event APIs; no third-party shortcut library is included.
+- The macOS build is intentionally unsigned and not notarized until a Developer ID certificate is available.
 
 ## System behavior
 
-Everon is a keep-awake utility. It prevents automatic system sleep while enabled, but does **not** intercept manual lock, sleep, sign-out, or shutdown commands and is not intended to bypass system or organization policies.
+Everon prevents automatic idle sleep while enabled. It does not intercept explicit user requests to lock, sleep, sign out, restart, or shut down, and it is not intended to bypass system or organization policies.
 
-When **Respect Battery Saver** is enabled and Windows Battery Saver becomes active, Everon temporarily releases its keep-awake request and suppresses synthetic F15/F16/F17 input until Battery Saver is no longer active. Existing installations keep the previous behavior unless this option is enabled.
-
-The application is portable, requires no installer, and does not require administrator privileges. If **Start with Windows** is enabled, keep `Everon.exe` in a stable location; after moving the executable, enable autostart again so the stored path is updated.
+On macOS, optional synthetic key presses may require Accessibility permission depending on system policy. Core IOKit keep-awake behavior does not require Accessibility permission.
 
 ## Usage
 
-1. Download `Everon.exe` from the latest [GitHub Release](https://github.com/StanleyLl0yd/everon/releases).
-2. Run it.
-3. Use the Everon icon in the Windows system tray:
-   - right-click to see live status, enable or disable Everon, start a preset/custom/until-time timer, open **Settings** or **About**, or exit;
-   - single-click to open **Settings**.
-4. Configure display behavior, battery policy, optional key presses, timer mode, hotkey, notifications, language, and autostart as needed.
+### Windows
+
+1. Download `Everon.exe` from the latest GitHub Release.
+2. Run it and use the tray icon to control Everon.
+3. Open Settings to configure display behavior, battery policy, synthetic key presses, timers, hotkey, notifications, language, and autostart.
+
+### macOS
+
+1. Download `Everon-macOS-universal.zip` from the latest GitHub Release and extract `Everon.app`.
+2. Because the current build is unsigned, macOS may block the first launch. Allow it in **System Settings → Privacy & Security → Open Anyway**.
+3. Use the Everon menu-bar icon to enable/disable keep-awake mode, start a timer, open Settings or About, or quit.
 
 ## Build from source
+
+### Windows
 
 Requirements: Visual Studio or Visual Studio Build Tools with **Desktop development with C++**, and CMake 3.21 or newer.
 
@@ -66,24 +76,36 @@ cmake --build build --config Release --parallel
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-The executable is normally created at:
+The executable is normally created at `build\Release\Everon.exe`.
 
-```text
-build\Release\Everon.exe
+### macOS
+
+Requirements: macOS 13 or newer, Xcode Command Line Tools, and CMake 3.21 or newer.
+
+```bash
+cmake -S . -B build-macos -DCMAKE_BUILD_TYPE=Release
+cmake --build build-macos --parallel
 ```
 
-CI covers the Windows x64 Release build, timer behavior, hotkey parsing/serialization, Settings state, PowerManager behavior, battery-policy decisions, and SHA-256 generation for the build artifact.
+The Universal 2 application bundle is created at `build-macos/macos/Everon.app`.
 
-Main stack: C++20, native Win32 API, CMake, and CTest.
+No Homebrew, CocoaPods, Swift Package Manager, or other third-party runtime/build dependency is required for the application itself.
 
-## Verify a release checksum
+## Verify release checksums
+
+Windows:
 
 ```powershell
 (Get-FileHash .\Everon.exe -Algorithm SHA256).Hash.ToLower()
 Get-Content .\Everon.exe.sha256
 ```
 
-The two SHA-256 values must match.
+macOS:
+
+```bash
+shasum -a 256 Everon-macOS-universal.zip
+cat Everon-macOS-universal.zip.sha256
+```
 
 ## Changelog
 
