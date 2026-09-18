@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Verify icon assets
+        run: python scripts/verify-icon-assets.py
+
       - name: Verify version metadata
         shell: pwsh
         run: ./scripts/verify-version.ps1
@@ -120,6 +123,8 @@ jobs:
           plutil -lint "$app/Contents/Info.plist"
           [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")" == "Everon" ]]
           [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" == "io.github.stanleyll0yd.everon" ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist")" == "Everon.icns" ]]
+          [[ -f "$app/Contents/Resources/Everon.icns" ]]
           major=$(awk '$2 == "VER_MAJOR" {print $3}' src/Version.h)
           minor=$(awk '$2 == "VER_MINOR" {print $3}' src/Version.h)
           patch=$(awk '$2 == "VER_PATCH" {print $3}' src/Version.h)
