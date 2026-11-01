@@ -44,7 +44,7 @@ jobs:
         run: ./scripts/collect-coverage.ps1
 
       - name: Analyze
-        uses: SonarSource/sonarqube-scan-action@c7ee0f9df90b7aa20e8dcf9695dcfe2e7da5b4f2 # v7
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
         with:
           args: >-
             -Dsonar.projectKey=StanleyLl0yd_everon
